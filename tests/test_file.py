@@ -18,8 +18,23 @@ def test(files):
     ds_from_binary = xrfac.binary.load(binary_file)
     for k in ds_from_ascii.variables:
         if ds_from_ascii[k].dtype.kind in 'iuf':
-            print(ds_from_ascii[k])
-            print(ds_from_binary[k])
             assert np.allclose(ds_from_ascii[k], ds_from_binary[k])
         else:
             assert (ds_from_ascii[k] == ds_from_binary[k]).all()
+
+
+def test_tr():
+    tr_ascii_file = THIS_DIR + '/example_data/ne_multipole.tr'
+    tr_bin_file = THIS_DIR + '/example_data/ne_multipole.tr.b'
+    en_bin_file = THIS_DIR + '/example_data/ne.lev.b'
+
+    ds_ascii = xrfac.ascii.load(tr_ascii_file)
+    ds_bin = xrfac.binary.load(tr_bin_file)
+    ds_bin_en = xrfac.binary.load(en_bin_file)
+
+    ds_bin = xrfac.binary.oscillator_strength(ds_bin, ds_bin_en)
+    for k in ds_ascii.variables:
+        if ds_ascii[k].dtype.kind in 'iuf':
+            assert np.allclose(ds_ascii[k], ds_bin[k])
+        else:
+            assert (ds_ascii[k] == ds_bin[k]).all()

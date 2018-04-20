@@ -20,8 +20,26 @@ ATOMIC_SYMBOLS = [
 ]
 
 
+C = 2.99792458e8  # light speed in m/s
+H = 6.62607004e-34  # planck's constant m2 kg/s
+KB = 1.38064852e-23  # boltzmann's constant in m2 kg s^(-2) K^-1
+J2EV = 6.24150962915265e18  # eV / J
+ALPHA = 7.2973525664e-3  # fine structure constant
+
+
 def hartree2eV(hartree):
     """ Convert hartlee to eV """
     return hartree * 27.21138602
 
 
+def eV2hartree(eV):
+    """ Convert hartlee to eV """
+    return eV / 27.21138602
+
+
+def eV2nm(eV):
+    """ Convert eV to nm """
+    # h c / lambda
+    # eV -> J : 0.1602e-18
+    hc = H * C * 1.0e9 * J2EV  # to nm
+    return hc / eV

@@ -1,1 +1,1 @@
-from . import ascii, binary, utils
+from . import ascii, binary, utils, spec

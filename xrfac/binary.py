@@ -81,7 +81,7 @@ def tr(filename):
     with open(filename, 'rb') as f:
         header, f = _F_header(f)
         return _read_tr(header, f)
-        
+
 
 def _read_en(header, file):
     def read_block(file):
@@ -101,7 +101,7 @@ def _read_en(header, file):
         block['n'] = np.zeros(nlev, dtype=np.int8)
         block['l'] = np.zeros(nlev, dtype=np.int8)
         block['j'] = np.zeros(nlev, dtype=np.int8)
-        block['ncomplex'] = np.chararray(nlev, itemsize=LNCOMPLEX, 
+        block['ncomplex'] = np.chararray(nlev, itemsize=LNCOMPLEX,
                                          unicode=True)
         block['sname'] = np.chararray(nlev, itemsize=LSNAME, unicode=True)
         block['name'] = np.chararray(nlev, itemsize=LNAME, unicode=True)
@@ -149,19 +149,20 @@ def _read_tr(header, file):
         block['gauge'] = struct.unpack('i', file.read(4))[0]
         block['mode'] = struct.unpack('i', file.read(4))[0]
         block['multipole'] = struct.unpack('i', file.read(4))[0]
-
+        is_multipole = block['multipole'] != 0
         # convert to array
         block = {key: np.full(ntrans, val) for key, val in block.items()}
 
         # read the values
         block['lower'] = np.zeros(ntrans, dtype=int)
         block['upper'] = np.zeros(ntrans, dtype=int)
-        block['strength'] = np.zeros(ntrans, dtype=np.float32)
+        strength_key = 'M' if is_multipole else 'strength'
+        block[strength_key] = np.zeros(ntrans, dtype=np.float32)
 
         for i in range(ntrans):
             block['lower'][i] = struct.unpack('i', file.read(4))[0]
             block['upper'][i] = struct.unpack('i', file.read(4))[0]
-            block['strength'][i] = struct.unpack('f', file.read(4))[0]
+            block[strength_key][i] = struct.unpack('f', file.read(4))[0]
         return block
 
     blocks = [read_block(file) for i in range(header['NBlocks'])]
@@ -172,5 +173,25 @@ def _read_tr(header, file):
          for k in keys}, attrs=header)
     ds['lower'].attrs['about'] = 'The lower level index of the transition.'
     ds['upper'].attrs['about'] = 'The upper level index of the transition.'
-    ds['strength'].attrs['about'] = 'The weighted oscillator strength gf.'
+    if 'strength' in ds:
+        ds['strength'].attrs['about'] = 'The weighted oscillator strength gf.'
+    if 'M' in ds:
+        ds['M'].attrs['about'] = 'The multipole matrix elements M.'
     return ds
+
+
+def oscillator_strength(tr, en):
+    """ Add oscillator strength for transition data, based on the equation
+    (2.2)
+    """
+    if 'strength' in tr:
+        return tr
+    # energy difference
+    en = en['energy']
+    w = utils.eV2hartree(en.isel(ilev=tr['upper']) - en.isel(ilev=tr['lower']))
+    L = np.abs(tr['multipole'])
+    strength = 1 / (2.0*L+1) * w * (utils.ALPHA * w)**(2*L-2) * tr['M']**2
+    tr['strength'] = strength.astype(np.float32)
+    tr['strength'].attrs['about'] = 'The weighted oscillator strength gf.'
+    del tr['M']
+    return tr
