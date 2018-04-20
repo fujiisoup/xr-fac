@@ -1,0 +1,8 @@
+# caches
+__pycache__
+.cache
+.benchmarks
+.pytest_cache
+
+# install
+xrfac.egg-info
