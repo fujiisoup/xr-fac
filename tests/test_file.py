@@ -9,7 +9,9 @@ THIS_DIR = os.path.abspath(os.path.dirname(__file__))
 
 @pytest.mark.parametrize('files', [
     ('ne.lev', 'ne.lev.b'),
-    ('ne.tr', 'ne.tr.b')])
+    ('ne.tr', 'ne.tr.b'),
+    ('Ne03a.en', 'Ne03b.en'),  # 1.1.5
+    ])
 def test(files):
     ascii_file = THIS_DIR + '/example_data/' + files[0]
     binary_file = THIS_DIR + '/example_data/' + files[1]
