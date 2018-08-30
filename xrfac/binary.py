@@ -5,11 +5,6 @@ import xarray as xr
 from . import utils
 
 
-LNCOMPLEX = 32
-LSNAME = 24
-LNAME = 56
-
-
 def _F_header(file):
     """ Read common header from file """
     header = OrderedDict()
@@ -78,12 +73,18 @@ def tr(filename):
     -------
     obj: xr.DataArray
     """
+    if not has_xarray:
+        raise ImportError('This function requires xarray installed in the '
+                          'environment.')
+
     with open(filename, 'rb') as f:
         header, f = _F_header(f)
         return _read_tr(header, f)
 
 
 def _read_en(header, file):
+    lncomplex, lsname, lname = utils.get_lengths(header['FAC'])
+    
     def read_block(file):
         block = OrderedDict()
         position = struct.unpack('l', file.read(8))[0]
@@ -101,10 +102,10 @@ def _read_en(header, file):
         block['n'] = np.zeros(nlev, dtype=np.int8)
         block['l'] = np.zeros(nlev, dtype=np.int8)
         block['j'] = np.zeros(nlev, dtype=np.int8)
-        block['ncomplex'] = np.chararray(nlev, itemsize=LNCOMPLEX,
+        block['ncomplex'] = np.chararray(nlev, itemsize=lncomplex,
                                          unicode=True)
-        block['sname'] = np.chararray(nlev, itemsize=LSNAME, unicode=True)
-        block['name'] = np.chararray(nlev, itemsize=LNAME, unicode=True)
+        block['sname'] = np.chararray(nlev, itemsize=lsname, unicode=True)
+        block['name'] = np.chararray(nlev, itemsize=lname, unicode=True)
 
         for i in range(nlev):
             p = struct.unpack('h', file.read(2))[0]
@@ -117,9 +118,10 @@ def _read_en(header, file):
             block['ilev'][i] = struct.unpack('i', file.read(4))[0]
             block['ibase'][i] = struct.unpack('i', file.read(4))[0]
             block['energy'][i] = struct.unpack('d', file.read(8))[0]
-            block['ncomplex'][i] = file.read(LNCOMPLEX).strip(b'\x00').strip()
-            block['sname'][i] = file.read(LSNAME).strip(b'\x00').strip()
-            block['name'][i] = file.read(LNAME).strip(b'\x00').strip()
+            block['ncomplex'][i] = file.read(lncomplex).strip(b'\x00').strip()
+            block['sname'][i] = file.read(lsname).strip(b'\x00').strip()
+            block['name'][i] = file.read(lname).strip(b'\x00').strip()
+            
         return block
 
     blocks = [read_block(file) for i in range(header['NBlocks'])]

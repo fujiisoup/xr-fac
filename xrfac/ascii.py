@@ -2,10 +2,7 @@ from collections import OrderedDict
 import numpy as np
 import xarray as xr
 
-
-LNCOMPLEX = 32
-LSNAME = 24
-LNAME = 56
+from . import utils
 
 
 def _read_value(lines, cls):
@@ -97,6 +94,8 @@ def read_tr(filename):
 
 def _read_en(header, lines):
     """ private function to read .en file """
+    lncomplex, lsname, lname = utils.get_lengths(header['FAC'])
+    
     def read_blocks(lines):
         block = OrderedDict()
         block['nele'], lines = _read_value(lines, int)
@@ -113,10 +112,10 @@ def _read_en(header, lines):
         block['n'] = np.zeros(nlev, dtype=np.int8)
         block['l'] = np.zeros(nlev, dtype=np.int8)
         block['j'] = np.zeros(nlev, dtype=np.int8)
-        block['ncomplex'] = np.chararray(nlev, itemsize=LNCOMPLEX,
+        block['ncomplex'] = np.chararray(nlev, itemsize=lncomplex,
                                          unicode=True)
-        block['sname'] = np.chararray(nlev, itemsize=LSNAME, unicode=True)
-        block['name'] = np.chararray(nlev, itemsize=LNAME, unicode=True)
+        block['sname'] = np.chararray(nlev, itemsize=lsname, unicode=True)
+        block['name'] = np.chararray(nlev, itemsize=lname, unicode=True)
         for i, line in enumerate(lines):
             if line.strip() == '':  # if empty
                 blocks = read_blocks(lines[i+1:])
