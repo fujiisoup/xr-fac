@@ -41,6 +41,8 @@ def load(filename):
             return _read_en(header, f)
         if header['Type'] == 2:
             return _read_tr(header, f)
+        if header['Type'] == 7:
+            return _read_sp(header, f)
 
         raise NotImplementedError(
             'File type {} is not yet implemented.'.format(header['Type']))
@@ -84,7 +86,7 @@ def tr(filename):
 
 def _read_en(header, file):
     lncomplex, lsname, lname = utils.get_lengths(header['FAC'])
-    
+
     def read_block(file):
         block = OrderedDict()
         position = struct.unpack('l', file.read(8))[0]
@@ -121,7 +123,7 @@ def _read_en(header, file):
             block['ncomplex'][i] = file.read(lncomplex).strip(b'\x00').strip()
             block['sname'][i] = file.read(lsname).strip(b'\x00').strip()
             block['name'][i] = file.read(lname).strip(b'\x00').strip()
-            
+
         return block
 
     blocks = [read_block(file) for i in range(header['NBlocks'])]
@@ -179,6 +181,51 @@ def _read_tr(header, file):
         ds['strength'].attrs['about'] = 'The weighted oscillator strength gf.'
     if 'M' in ds:
         ds['M'].attrs['about'] = 'The multipole matrix elements M.'
+    return ds
+
+
+def _read_sp(header, file):
+    lncomplex, lsname, lname = utils.get_lengths(header['FAC'])
+
+    def read_block(file):
+        block = OrderedDict()
+        position = struct.unpack('l', file.read(8))[0]
+        length = struct.unpack('l', file.read(8))[0]
+        block['nele'] = struct.unpack('i', file.read(4))[0]
+        ntrans = struct.unpack('i', file.read(4))[0]
+        block['iblock'] = struct.unpack('i', file.read(4))[0]
+        block['fblock'] = struct.unpack('i', file.read(4))[0]
+        block['icomplex'] = file.read(lncomplex).strip(b'\x00').strip()
+        block['fcomplex'] = file.read(lncomplex).strip(b'\x00').strip()
+        block['TYPE'] = struct.unpack('i', file.read(4))[0]
+        # convert to array
+        block = {key: np.full(ntrans, val) for key, val in block.items()}
+
+        # read the values
+        block['lower'] = np.zeros(ntrans, dtype=int)
+        block['upper'] = np.zeros(ntrans, dtype=int)
+        block['energy'] = np.zeros(ntrans, dtype=float)
+        block['strength'] = np.zeros(ntrans, dtype=float)
+        block['rrate'] = np.zeros(ntrans, dtype=float)
+        block['trate'] = np.zeros(ntrans, dtype=float)
+
+        for i in range(ntrans):
+            block['lower'][i] = struct.unpack('i', file.read(4))[0]
+            block['upper'][i] = struct.unpack('i', file.read(4))[0]
+            block['energy'][i] = struct.unpack('f', file.read(4))[0]
+            block['strength'][i] = struct.unpack('f', file.read(4))[0]
+            block['rrate'][i] = struct.unpack('f', file.read(4))[0]
+            block['trate'][i] = struct.unpack('f', file.read(4))[0]
+        return block
+
+    blocks = [read_block(file) for i in range(header['NBlocks'])]
+
+    keys = blocks[0].keys()
+    ds = xr.Dataset(
+        {k: ('itrans', np.concatenate([bl[k] for bl in blocks]))
+         for k in keys}, attrs=header)
+
+    ds['energy'] = utils.hartree2eV(ds['energy'])
     return ds
 
 
