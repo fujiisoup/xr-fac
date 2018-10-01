@@ -183,12 +183,11 @@ def getA(levels, transition):
     omega = eV2hartree(levels['energy'][transition['upper']] -
                        levels['energy'][transition['lower']])
 
-    if (transition['multipole'] == 0).all():
+    if 'strength' in transition:
         gf = transition['strength']
-    elif (transition['multipole'] != 0).all():
-        L = transition['multipole']
-        gf = (1 / (2 * L + 1) * omega * (ALPHA * omega)**(2 * L - 2) *
-              transition['strength']**2)
+    elif 'M' in transition:
+        from . import binary
+        gf = binary.oscillator_strength(transition.copy(), levels)['strength']
     else:
         raise ValueError('multipole is expected all zero or all non-zero.')
 

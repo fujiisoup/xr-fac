@@ -42,10 +42,14 @@ def test_tr():
             assert (ds_ascii[k] == ds_bin[k]).all()
 
 
-def test_tr_A():
-    tr_ascii_file = THIS_DIR + '/example_data/ne.tr'
-    tr_bin_file = THIS_DIR + '/example_data/ne.tr.b'
-    en_bin_file = THIS_DIR + '/example_data/ne.lev.b'
+@pytest.mark.parametrize('files', [
+    ('ne.tr', 'ne.tr.b', 'ne.lev.b'),
+    ('ne_multipole.tr', 'ne_multipole.tr.b', 'ne.lev.b'),
+    ])
+def test_tr_A(files):
+    tr_ascii_file = THIS_DIR + '/example_data/' + files[0]
+    tr_bin_file = THIS_DIR + '/example_data/' + files[1]
+    en_bin_file = THIS_DIR + '/example_data/' + files[2]
 
     tr_ascii = xrfac.ascii.load(tr_ascii_file)
     tr_bin = xrfac.binary.load(tr_bin_file)
