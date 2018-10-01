@@ -11,7 +11,7 @@ def get_lengths(version):
         lncomplex = 32
         lsname = 48
         lname = 128
-    return lncomplex, lsname, lname    
+    return lncomplex, lsname, lname
 
 
 ATOMIC_SYMBOLS = [
@@ -156,6 +156,7 @@ H = 6.62607004e-34  # planck's constant m2 kg/s
 KB = 1.38064852e-23  # boltzmann's constant in m2 kg s^(-2) K^-1
 J2EV = 6.24150962915265e18  # eV / J
 ALPHA = 7.2973525664e-3  # fine structure constant
+RATE_AU = 4.13413733E16  # inverse of time in atomic unit
 
 
 def hartree2eV(hartree):
@@ -174,3 +175,23 @@ def eV2nm(eV):
     # eV -> J : 0.1602e-18
     hc = H * C * 1.0e9 * J2EV  # to nm
     return hc / eV
+
+
+def getA(levels, transition):
+    """ Get Transition rate by from level and transition file """
+    L = transition['multipole']
+    omega = eV2hartree(levels['energy'][transition['upper']] -
+                       levels['energy'][transition['lower']])
+
+    if (transition['multipole'] == 0).all():
+        gf = transition['strength']
+    elif (transition['multipole'] != 0).all():
+        L = transition['multipole']
+        gf = (1 / (2 * L + 1) * omega * (ALPHA * omega)**(2 * L - 2) *
+              transition['strength']**2)
+    else:
+        raise ValueError('multipole is expected all zero or all non-zero.')
+
+    gA = 2 * ALPHA**3 * omega**2 * gf * RATE_AU
+    g = levels['j'][transition['upper']] + 1
+    return gA / g

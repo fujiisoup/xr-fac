@@ -95,7 +95,7 @@ def read_tr(filename):
 def _read_en(header, lines):
     """ private function to read .en file """
     lncomplex, lsname, lname = utils.get_lengths(header['FAC'])
-    
+
     def read_blocks(lines):
         block = OrderedDict()
         block['nele'], lines = _read_value(lines, int)
@@ -167,6 +167,7 @@ def _read_tr(header, lines):
         block['lower'] = np.zeros(ntrans, dtype=int)
         block['upper'] = np.zeros(ntrans, dtype=int)
         block['strength'] = np.zeros(ntrans, dtype=float)
+        block['A'] = np.zeros(ntrans, dtype=float)
 
         for i, line in enumerate(lines):
             if line.strip() == '':  # if empty
@@ -175,6 +176,7 @@ def _read_tr(header, lines):
             block['upper'][i] = int(line[:7])
             block['lower'][i] = int(line[11:17])
             block['strength'][i] = float(line[34:48])
+            block['A'][i] = float(line[48:62])
 
         return (block, )
 
