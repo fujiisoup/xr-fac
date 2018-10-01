@@ -8,10 +8,11 @@ THIS_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
 @pytest.mark.parametrize('files', [
-    ('ne.lev', 'ne.lev.b'),
-    ('ne.tr', 'ne.tr.b'),
-    ('Ne03a.en', 'Ne03b.en'),  # 1.1.5
-    ])
+     ('ne.lev', 'ne.lev.b'),
+     ('ne.tr', 'ne.tr.b'),
+     ('Ne03a.en', 'Ne03b.en'),  # 1.1.5
+     ('resulta.sp', 'resultb.sp'),
+     ])
 def test(files):
     ascii_file = THIS_DIR + '/example_data/' + files[0]
     binary_file = THIS_DIR + '/example_data/' + files[1]
@@ -20,7 +21,11 @@ def test(files):
     ds_from_binary = xrfac.binary.load(binary_file)
     for k in ds_from_binary.variables:
         if ds_from_ascii[k].dtype.kind in 'iuf':
-            assert np.allclose(ds_from_ascii[k], ds_from_binary[k])
+            if k in ['strength', 'rrate', 'trate']:
+                assert np.allclose(ds_from_ascii[k], ds_from_binary[k],
+                                   rtol=1e-4)
+            else:
+                assert np.allclose(ds_from_ascii[k], ds_from_binary[k])
         else:
             assert (ds_from_ascii[k] == ds_from_binary[k]).all()
 

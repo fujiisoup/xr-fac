@@ -1,6 +1,7 @@
 from collections import OrderedDict
 import numpy as np
 import xarray as xr
+import sys
 
 from . import utils
 
@@ -9,6 +10,8 @@ def _read_value(lines, cls):
     vals = lines[0].split('=')
     if len(vals) > 1:
         val = cls(vals[1].strip())
+        if cls is str:
+            val = val.encode('utf-8')
     else:
         val = ''
     return val, lines[1:]
@@ -50,6 +53,8 @@ def load(filename):
         return _read_en(header, lines)
     if header['Type'] == 2:
         return _read_tr(header, lines)
+    if header['Type'] == 7:
+        return _read_sp(header, lines)
 
     raise NotImplementedError(
         'File type {} is not yet implemented.'.format(header['Type']))
@@ -171,17 +176,20 @@ def _read_tr(header, lines):
 
         for i, line in enumerate(lines):
             if line.strip() == '':  # if empty
-                blocks = read_blocks(lines[i+1:])
-                return (block, ) + blocks
+                return lines[i+1:], block
             block['upper'][i] = int(line[:7])
             block['lower'][i] = int(line[11:17])
             block['strength'][i] = float(line[34:48])
             block['A'][i] = float(line[48:62])
 
-        return (block, )
+        return None, block
 
     lines = lines[1:]
-    blocks = read_blocks(lines)
+    lines, block = read_blocks(lines)
+    blocks = [block]
+    while lines is not None:
+        lines, block = read_blocks(lines)
+        blocks.append(block)
 
     keys = blocks[0].keys()
     ds = xr.Dataset(
@@ -190,4 +198,54 @@ def _read_tr(header, lines):
     ds['lower'].attrs['about'] = 'The lower level index of the transition.'
     ds['upper'].attrs['about'] = 'The upper level index of the transition.'
     ds['strength'].attrs['about'] = 'The weighted oscillator strength gf.'
+    return ds
+
+
+def _read_sp(header, lines):
+    def read_blocks(lines):
+        block = OrderedDict()
+        block['nele'], lines = _read_value(lines, int)
+        ntrans, lines = _read_value(lines, int)
+        block['TYPE'], lines = _read_value(lines, int)
+        block['iblock'], lines = _read_value(lines, int)
+        block['icomplex'], lines = _read_value(lines, str)
+        block['fblock'], lines = _read_value(lines, int)
+        block['fcomplex'], lines = _read_value(lines, str)
+        # convert to array
+        block = {key: np.full(ntrans, val) for key, val in block.items()}
+
+        # read the values
+        block['upper'] = np.zeros(ntrans, dtype=int)
+        block['lower'] = np.zeros(ntrans, dtype=int)
+        block['energy'] = np.zeros(ntrans, dtype=float)
+        block['strength'] = np.zeros(ntrans, dtype=float)
+        block['rrate'] = np.zeros(ntrans, dtype=float)
+        block['trate'] = np.zeros(ntrans, dtype=float)
+
+        for i, line in enumerate(lines):
+            if line.strip() == '':  # if empty
+                return lines[i+1:], block
+            block['upper'][i] = int(line[:6])
+            block['lower'][i] = int(line[6:13])
+            block['energy'][i] = float(line[13:27])
+            block['strength'][i] = float(line[27:39])
+            block['rrate'][i] = float(line[39:51])
+            block['trate'][i] = float(line[51:63])
+        return None, block
+
+    lines = lines[1:]
+    lines, block = read_blocks(lines)
+    blocks = [block]
+    while lines is not None:
+        lines, block = read_blocks(lines)
+        blocks.append(block)
+
+    keys = blocks[0].keys()
+    ds = xr.Dataset(
+    {k: ('itrans', np.concatenate([bl[k] for bl in blocks]))
+     for k in keys}, attrs=header)
+    ds['lower'].attrs['about'] = 'The lower level index of the transition.'
+    ds['upper'].attrs['about'] = 'The upper level index of the transition.'
+    ds['energy'].attrs['about'] = 'The transition energy in eV'
+    ds['strength'].attrs['about'] = 'The line luminosity in photon/s'
     return ds

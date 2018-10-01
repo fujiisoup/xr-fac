@@ -6,3 +6,5 @@ __pycache__
 
 # install
 xrfac.egg-info
+build
+dist
