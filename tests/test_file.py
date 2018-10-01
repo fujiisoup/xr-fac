@@ -18,7 +18,7 @@ def test(files):
 
     ds_from_ascii = xrfac.ascii.load(ascii_file)
     ds_from_binary = xrfac.binary.load(binary_file)
-    for k in ds_from_ascii.variables:
+    for k in ds_from_binary.variables:
         if ds_from_ascii[k].dtype.kind in 'iuf':
             assert np.allclose(ds_from_ascii[k], ds_from_binary[k])
         else:
@@ -35,8 +35,25 @@ def test_tr():
     ds_bin_en = xrfac.binary.load(en_bin_file)
 
     ds_bin = xrfac.binary.oscillator_strength(ds_bin, ds_bin_en)
-    for k in ds_ascii.variables:
+    for k in ds_bin.variables:
         if ds_ascii[k].dtype.kind in 'iuf':
             assert np.allclose(ds_ascii[k], ds_bin[k])
         else:
             assert (ds_ascii[k] == ds_bin[k]).all()
+
+
+@pytest.mark.parametrize('files', [
+    ('ne.tr', 'ne.tr.b', 'ne.lev.b'),
+    ('ne_multipole.tr', 'ne_multipole.tr.b', 'ne.lev.b'),
+    ])
+def test_tr_A(files):
+    tr_ascii_file = THIS_DIR + '/example_data/' + files[0]
+    tr_bin_file = THIS_DIR + '/example_data/' + files[1]
+    en_bin_file = THIS_DIR + '/example_data/' + files[2]
+
+    tr_ascii = xrfac.ascii.load(tr_ascii_file)
+    tr_bin = xrfac.binary.load(tr_bin_file)
+    en_bin = xrfac.binary.load(en_bin_file)
+
+    A = xrfac.utils.getA(en_bin, tr_bin)
+    assert np.allclose(A, tr_ascii['A'])
