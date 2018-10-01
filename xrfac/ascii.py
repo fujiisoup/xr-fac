@@ -3,8 +3,6 @@ import numpy as np
 import xarray as xr
 import sys
 
-sys.setrecursionlimit(100000)
-
 from . import utils
 
 
@@ -177,16 +175,19 @@ def _read_tr(header, lines):
 
         for i, line in enumerate(lines):
             if line.strip() == '':  # if empty
-                blocks = read_blocks(lines[i+1:])
-                return (block, ) + blocks
+                return lines[i+1:], block
             block['upper'][i] = int(line[:7])
             block['lower'][i] = int(line[11:17])
             block['strength'][i] = float(line[34:48])
 
-        return (block, )
+        return None, block
 
     lines = lines[1:]
-    blocks = read_blocks(lines)
+    lines, block = read_blocks(lines)
+    blocks = [block]
+    while lines is not None:
+        lines, block = read_blocks(lines)
+        blocks.append(block)
 
     keys = blocks[0].keys()
     ds = xr.Dataset(
@@ -221,18 +222,21 @@ def _read_sp(header, lines):
 
         for i, line in enumerate(lines):
             if line.strip() == '':  # if empty
-                blocks = read_blocks(lines[i+1:])
-                return (block, ) + blocks
+                return lines[i+1:], block
             block['upper'][i] = int(line[:6])
             block['lower'][i] = int(line[6:13])
             block['energy'][i] = float(line[13:27])
             block['strength'][i] = float(line[27:39])
             block['rrate'][i] = float(line[39:51])
             block['trate'][i] = float(line[51:63])
-        return (block, )
+        return None, block
 
     lines = lines[1:]
-    blocks = read_blocks(lines)
+    lines, block = read_blocks(lines)
+    blocks = [block]
+    while lines is not None:
+        lines, block = read_blocks(lines)
+        blocks.append(block)
 
     keys = blocks[0].keys()
     ds = xr.Dataset(
