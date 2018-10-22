@@ -137,6 +137,7 @@ def _read_en(header, file):
     ionization_eng = ds['energy'].min()
     ds.attrs['idx_ground'] = ds['energy'].argmin().values.item()
     ds.attrs['eng_ground'] = ionization_eng.values.item()
+    ds.attrs['ionization_eng'] = ionization_eng
     ds['energy'] -= ionization_eng
     ds['energy'].attrs['unit'] = 'eV'
     return ds
