@@ -139,6 +139,7 @@ def _read_en(header, file):
     header['eng_ground'] = ionization_eng.values.item()
     ds['energy'] -= ionization_eng
     ds['energy'].attrs['unit'] = 'eV'
+    ds.attrs['ionization_eng'] = ionization_eng
     return ds
 
 
