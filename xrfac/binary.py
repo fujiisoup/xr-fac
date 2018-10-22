@@ -135,11 +135,10 @@ def _read_en(header, file):
     ds = ds.set_coords(['ilev'])
     ds['energy'] = utils.hartree2eV(ds['energy'])
     ionization_eng = ds['energy'].min()
-    header['idx_ground'] = ds['energy'].argmin().values.item()
-    header['eng_ground'] = ionization_eng.values.item()
+    ds.attrs['idx_ground'] = ds['energy'].argmin().values.item()
+    ds.attrs['eng_ground'] = ionization_eng.values.item()
     ds['energy'] -= ionization_eng
     ds['energy'].attrs['unit'] = 'eV'
-    ds.attrs['ionization_eng'] = ionization_eng
     return ds
 
 
