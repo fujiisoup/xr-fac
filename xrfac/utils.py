@@ -167,7 +167,7 @@ RATE_AU = 4.13413733E16  # inverse of time in atomic unit
 
 def get_data(filename):
     packagedir = xrfac.__path__[0]
-    dirname = os.path.join(os.path.dirname(packagedir), 'data')
+    dirname = os.path.join(os.path.dirname(packagedir), 'xrfac', 'data')
     fullname = os.path.join(dirname, filename)
     return fullname
 
