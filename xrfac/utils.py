@@ -1,4 +1,8 @@
 from distutils.version import LooseVersion
+import os
+import numpy as np
+
+import xrfac
 
 
 def get_lengths(version):
@@ -157,6 +161,47 @@ KB = 1.38064852e-23  # boltzmann's constant in m2 kg s^(-2) K^-1
 J2EV = 6.24150962915265e18  # eV / J
 ALPHA = 7.2973525664e-3  # fine structure constant
 RATE_AU = 4.13413733E16  # inverse of time in atomic unit
+
+
+# read the isotope table
+
+def get_data(filename):
+    packagedir = xrfac.__path__[0]
+    dirname = os.path.join(os.path.dirname(packagedir), 'data')
+    fullname = os.path.join(dirname, filename)
+    return fullname
+
+
+def _read_isotope_data():
+    """ get isotope data """
+    filepath = get_data('isotopetable.dat')
+    with open(filepath, 'r') as f:
+        lines = f.readlines()
+
+    atomic_data = {}
+    for line in lines:
+        if line[0] == '%':  # comment
+            continue
+        values = line.split()
+        values = [v.strip() for v in values]
+        atomic_no = int(values[0])
+        if atomic_no not in atomic_data.keys():
+            atomic_data[atomic_no] = []
+        data = {'protons': int(values[0]),
+                'nucleons': int(values[1]),
+                'is_radioactive': values[2] == '*',
+                'symbol': values[3],
+                'name': values[4],
+                'spin_quantum_number': float(values[5]),
+                'nuclear_g_factor': float(values[6]),
+                'natural_abundance': float(values[7]) * 0.01,
+                'elecric_quadrupole_moment': float(values[8]),
+                }
+        atomic_data[atomic_no].append(data)
+    return atomic_data
+
+
+ATOMIC_DATA = _read_isotope_data()
 
 
 def hartree2eV(hartree):
