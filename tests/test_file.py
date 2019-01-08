@@ -29,6 +29,13 @@ def test(files):
         else:
             assert (ds_from_ascii[k] == ds_from_binary[k]).all()
 
+    ds_oufofmemory = xrfac.binary.load(binary_file, in_memory=False)
+    for k in ds_from_binary.variables:
+        if ds_oufofmemory[k].dtype.kind in 'iuf':
+            assert np.allclose(ds_oufofmemory[k], ds_from_binary[k])
+        else:
+            assert (ds_oufofmemory[k] == ds_from_binary[k]).all()
+
 
 def test_tr():
     tr_ascii_file = THIS_DIR + '/example_data/ne_multipole.tr'
