@@ -1,4 +1,5 @@
 import os
+import warnings
 import numpy as np
 import pytest
 import xrfac
@@ -28,6 +29,22 @@ def test(files):
                 assert np.allclose(ds_from_ascii[k], ds_from_binary[k])
         else:
             assert (ds_from_ascii[k] == ds_from_binary[k]).all()
+
+    ds_oufofmemory = xrfac.binary.load(binary_file, in_memory=False)
+    for k in ds_from_binary.variables:
+        if ds_oufofmemory[k].dtype.kind in 'iuf':
+            assert np.allclose(ds_oufofmemory[k], ds_from_binary[k])
+        else:
+            assert (ds_oufofmemory[k] == ds_from_binary[k]).all()
+
+    # can be load
+    ds_oufofmemory.load()
+    # make sure the temporary files should not be there
+    for f in ds_oufofmemory.attrs._temporary_files:
+        assert not os.path.exists(f)
+    # can be save as another netcdf
+    ds_oufofmemory.to_netcdf('tmp.nc')
+    os.remove('tmp.nc')
 
 
 def test_tr():

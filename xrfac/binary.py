@@ -1,8 +1,12 @@
 from collections import OrderedDict
+import tempfile
 import struct
 import numpy as np
 import xarray as xr
 from . import utils
+
+
+ONE_FILE_ENTRIES = 1000
 
 
 def _F_header(file):
@@ -18,18 +22,23 @@ def _F_header(file):
     header['Z'] = struct.unpack('f', file.read(4))[0]
     header['atom'] = file.read(2).decode('utf-8')
     file.read(1)
-    header['Endian'] = bool(file.read(1))
+    header['Endian'] = 'True' if bool(file.read(1)) else 'False'
     header['NBlocks'] = struct.unpack('i', file.read(4))[0]
     return header, file
 
 
-def load(filename):
+def load(filename, in_memory=True):
     """ read fac output file, detect filetype automatically and return as
     a xarray object.
 
     Parameters
     ----------
     filename: path to the file
+    in_memory: boolean
+        If True, load the file into memory. If False, the file is once
+        converted to netCDF format and saved to temporal location.
+        Then, the lazy load will be performed.
+        Note that for in_memory=False, dask needs to be installed.
 
     Returns
     -------
@@ -38,17 +47,17 @@ def load(filename):
     with open(filename, 'rb') as f:
         header, f = _F_header(f)
         if header['Type'] == 1:
-            return _read_en(header, f)
+            return _read_en(header, f, in_memory=in_memory)
         if header['Type'] == 2:
-            return _read_tr(header, f)
+            return _read_tr(header, f, in_memory=in_memory)
         if header['Type'] == 7:
-            return _read_sp(header, f)
+            return _read_sp(header, f, in_memory=in_memory)
 
         raise NotImplementedError(
             'File type {} is not yet implemented.'.format(header['Type']))
 
 
-def en(filename):
+def en(filename, in_memory):
     """ read .en file from fac and return as a xarray object.
 
     Parameters
@@ -61,10 +70,10 @@ def en(filename):
     """
     with open(filename, 'rb') as f:
         header, f = _F_header(f)
-        return _read_en(header, f)
+        return _read_en(header, f, in_memory)
 
 
-def tr(filename):
+def tr(filename, in_memory):
     """ read .tr file from fac and return as a xarray object.
 
     Parameters
@@ -81,10 +90,10 @@ def tr(filename):
 
     with open(filename, 'rb') as f:
         header, f = _F_header(f)
-        return _read_tr(header, f)
+        return _read_tr(header, f, in_memory)
 
 
-def _read_en(header, file):
+def _read_en(header, file, in_memory):
     lncomplex, lsname, lname = utils.get_lengths(header['FAC'])
 
     def read_block(file):
@@ -126,14 +135,37 @@ def _read_en(header, file):
 
         return block
 
-    blocks = [read_block(file) for i in range(header['NBlocks'])]
+    def to_xarray(block):
+        keys = block.keys()
+        ds = xr.Dataset(
+            {k: ('ilev', block[k]) for k in keys}, attrs=header)
+        ds = ds.set_coords(['ilev'])
+        ds['energy'] = utils.hartree2eV(ds['energy'])
+        return ds
 
-    keys = blocks[0].keys()
-    ds = xr.Dataset(
-        {k: ('ilev', np.concatenate([bl[k] for bl in blocks]))
-         for k in keys}, attrs=header)
-    ds = ds.set_coords(['ilev'])
-    ds['energy'] = utils.hartree2eV(ds['energy'])
+    if in_memory:
+        ds = xr.concat(
+            [to_xarray(read_block(file)) for i in range(header['NBlocks'])],
+            dim='ilev')
+    else:
+        files = []
+        i = 0
+        while i < header['NBlocks']:
+            count = 0
+            datasets = []
+            while count < ONE_FILE_ENTRIES and i < header['NBlocks']:
+                ds = to_xarray(read_block(file))
+                count += len(ds['ilev'])
+                i += 1
+                datasets.append(ds)
+            outfile = tempfile.NamedTemporaryFile()
+            xr.concat(datasets, dim='ilev').to_netcdf(outfile.name)
+            files.append(outfile)
+
+        filenames = [f.name for f in files]
+        ds = xr.open_mfdataset(filenames)
+        ds.attrs._temporary_files = filenames  # for testing
+
     ionization_eng = ds['energy'].min()
     ds.attrs['idx_ground'] = ds['energy'].argmin().values.item()
     ds.attrs['eng_ground'] = ionization_eng.values.item()
@@ -142,7 +174,7 @@ def _read_en(header, file):
     return ds
 
 
-def _read_tr(header, file):
+def _read_tr(header, file, in_memory):
 
     def read_block(file):
         block = OrderedDict()
@@ -169,22 +201,44 @@ def _read_tr(header, file):
             block[strength_key][i] = struct.unpack('f', file.read(4))[0]
         return block
 
-    blocks = [read_block(file) for i in range(header['NBlocks'])]
+    def to_xarray(block):
+        keys = block.keys()
+        ds = xr.Dataset(
+            {k: ('itrans', block[k]) for k in keys}, attrs=header)
+        ds['lower'].attrs['about'] = 'The lower level index of the transition.'
+        ds['upper'].attrs['about'] = 'The upper level index of the transition.'
+        if 'strength' in ds:
+            ds['strength'].attrs['about'] = 'The weighted oscillator strength gf.'
+        if 'M' in ds:
+            ds['M'].attrs['about'] = 'The multipole matrix elements M.'
+        return ds
 
-    keys = blocks[0].keys()
-    ds = xr.Dataset(
-        {k: ('itrans', np.concatenate([bl[k] for bl in blocks]))
-         for k in keys}, attrs=header)
-    ds['lower'].attrs['about'] = 'The lower level index of the transition.'
-    ds['upper'].attrs['about'] = 'The upper level index of the transition.'
-    if 'strength' in ds:
-        ds['strength'].attrs['about'] = 'The weighted oscillator strength gf.'
-    if 'M' in ds:
-        ds['M'].attrs['about'] = 'The multipole matrix elements M.'
-    return ds
+    if in_memory:
+        return xr.concat(
+            [to_xarray(read_block(file)) for i in range(header['NBlocks'])],
+            dim='itrans')
+    else:
+        files = []
+        i = 0
+        while i < header['NBlocks']:
+            count = 0
+            datasets = []
+            while count < ONE_FILE_ENTRIES and i < header['NBlocks']:
+                ds = to_xarray(read_block(file))
+                count += len(ds['itrans'])
+                i += 1
+                datasets.append(ds)
+            outfile = tempfile.NamedTemporaryFile()
+            xr.concat(datasets, dim='itrans').to_netcdf(outfile.name)
+            files.append(outfile)
+
+        filenames = [f.name for f in files]
+        ds = xr.open_mfdataset(filenames)
+        ds.attrs._temporary_files = filenames  # for testing
+        return ds
 
 
-def _read_sp(header, file):
+def _read_sp(header, file, in_memory):
     lncomplex, lsname, lname = utils.get_lengths(header['FAC'])
 
     def read_block(file):
@@ -218,15 +272,37 @@ def _read_sp(header, file):
             block['trate'][i] = struct.unpack('f', file.read(4))[0]
         return block
 
-    blocks = [read_block(file) for i in range(header['NBlocks'])]
+    def to_xarray(block):
+        keys = block.keys()
+        ds = xr.Dataset(
+            {k: ('itrans', block[k]) for k in keys}, attrs=header)
+        ds['energy'] = utils.hartree2eV(ds['energy'])
+        return ds
 
-    keys = blocks[0].keys()
-    ds = xr.Dataset(
-        {k: ('itrans', np.concatenate([bl[k] for bl in blocks]))
-         for k in keys}, attrs=header)
+    if in_memory:
+        return xr.concat(
+            [to_xarray(read_block(file)) for i in range(header['NBlocks'])],
+            dim='itrans')
+    else:
+        tempfile.mkdtemp()
+        files = []
+        i = 0
+        while i < header['NBlocks']:
+            count = 0
+            datasets = []
+            while count < ONE_FILE_ENTRIES and i < header['NBlocks']:
+                ds = to_xarray(read_block(file))
+                count += len(ds['itrans'])
+                i += 1
+                datasets.append(ds)
+            outfile = tempfile.NamedTemporaryFile()
+            xr.concat(datasets, dim='itrans').to_netcdf(outfile.name)
+            files.append(outfile)
 
-    ds['energy'] = utils.hartree2eV(ds['energy'])
-    return ds
+        filenames = [f.name for f in files]
+        ds = xr.open_mfdataset(filenames)
+        ds.attrs._temporary_files = filenames  # for testing
+        return ds
 
 
 def oscillator_strength(tr, en):
