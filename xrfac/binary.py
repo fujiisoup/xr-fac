@@ -34,6 +34,11 @@ def load(filename, in_memory=True):
     Parameters
     ----------
     filename: path to the file
+    in_memory: boolean
+        If True, load the file into memory. If False, the file is once
+        converted to netCDF format and saved to temporal location.
+        Then, the lazy load will be performed.
+        Note that for in_memory=False, dask needs to be installed.
 
     Returns
     -------
@@ -144,7 +149,6 @@ def _read_en(header, file, in_memory):
             dim='ilev')
     else:
         files = []
-        files = []
         i = 0
         while i < header['NBlocks']:
             count = 0
@@ -154,12 +158,14 @@ def _read_en(header, file, in_memory):
                 count += len(ds['ilev'])
                 i += 1
                 datasets.append(ds)
-            outfile = tempfile.NamedTemporaryFile(delete=False)
-            xr.concat(datasets, dim='ilev').to_netcdf(outfile)
-            files.append(outfile.name)
+            outfile = tempfile.NamedTemporaryFile()
+            xr.concat(datasets, dim='ilev').to_netcdf(
+                utils._NeverCloseFile(outfile))
+            files.append(outfile)
 
-        ds = xr.open_mfdataset(files)
-        ds.attrs._temporary_files = files  # monkey patch for testing
+        filenames = [f.name for f in files]
+        ds = xr.open_mfdataset(filenames)
+        ds.attrs._temporary_files = filenames  # for testing
 
     ionization_eng = ds['energy'].min()
     ds.attrs['idx_ground'] = ds['energy'].argmin().values.item()
@@ -223,11 +229,14 @@ def _read_tr(header, file, in_memory):
                 count += len(ds['itrans'])
                 i += 1
                 datasets.append(ds)
-            outfile = tempfile.NamedTemporaryFile(delete=False)
-            xr.concat(datasets, dim='itrans').to_netcdf(outfile)
-            files.append(outfile.name)
-        ds = xr.open_mfdataset(files)
-        ds.attrs._temporary_files = files  # monkey patch for testing
+            outfile = tempfile.NamedTemporaryFile()
+            xr.concat(datasets, dim='itrans').to_netcdf(
+                utils._NeverCloseFile(outfile))
+            files.append(outfile)
+
+        filenames = [f.name for f in files]
+        ds = xr.open_mfdataset(filenames)
+        ds.attrs._temporary_files = filenames  # for testing
         return ds
 
 
@@ -277,6 +286,7 @@ def _read_sp(header, file, in_memory):
             [to_xarray(read_block(file)) for i in range(header['NBlocks'])],
             dim='itrans')
     else:
+        tempfile.mkdtemp()
         files = []
         i = 0
         while i < header['NBlocks']:
@@ -287,12 +297,14 @@ def _read_sp(header, file, in_memory):
                 count += len(ds['itrans'])
                 i += 1
                 datasets.append(ds)
-            outfile = tempfile.NamedTemporaryFile(delete=False)
-            xr.concat(datasets, dim='itrans').to_netcdf(outfile)
-            files.append(outfile.name)
+            outfile = tempfile.NamedTemporaryFile()
+            xr.concat(datasets, dim='itrans').to_netcdf(
+                utils._NeverCloseFile(outfile))
+            files.append(outfile)
 
-        ds = xr.open_mfdataset(files)
-        ds.attrs._temporary_files = files  # for testing
+        filenames = [f.name for f in files]
+        ds = xr.open_mfdataset(filenames)
+        ds.attrs._temporary_files = filenames  # for testing
         return ds
 
 
