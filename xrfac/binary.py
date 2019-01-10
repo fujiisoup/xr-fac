@@ -22,7 +22,7 @@ def _F_header(file):
     header['Z'] = struct.unpack('f', file.read(4))[0]
     header['atom'] = file.read(2).decode('utf-8')
     file.read(1)
-    header['Endian'] = bool(file.read(1))
+    header['Endian'] = 'True' if bool(file.read(1)) else 'False'
     header['NBlocks'] = struct.unpack('i', file.read(4))[0]
     return header, file
 
@@ -159,8 +159,7 @@ def _read_en(header, file, in_memory):
                 i += 1
                 datasets.append(ds)
             outfile = tempfile.NamedTemporaryFile()
-            xr.concat(datasets, dim='ilev').to_netcdf(
-                utils._NeverCloseFile(outfile))
+            xr.concat(datasets, dim='ilev').to_netcdf(outfile.name)
             files.append(outfile)
 
         filenames = [f.name for f in files]
@@ -230,8 +229,7 @@ def _read_tr(header, file, in_memory):
                 i += 1
                 datasets.append(ds)
             outfile = tempfile.NamedTemporaryFile()
-            xr.concat(datasets, dim='itrans').to_netcdf(
-                utils._NeverCloseFile(outfile))
+            xr.concat(datasets, dim='itrans').to_netcdf(outfile.name)
             files.append(outfile)
 
         filenames = [f.name for f in files]
@@ -298,8 +296,7 @@ def _read_sp(header, file, in_memory):
                 i += 1
                 datasets.append(ds)
             outfile = tempfile.NamedTemporaryFile()
-            xr.concat(datasets, dim='itrans').to_netcdf(
-                utils._NeverCloseFile(outfile))
+            xr.concat(datasets, dim='itrans').to_netcdf(outfile.name)
             files.append(outfile)
 
         filenames = [f.name for f in files]

@@ -4,5 +4,5 @@ dependencies:
   - pytest
   - numpy
   - xarray
-  - scipy
+  - netcdf4
   - dask

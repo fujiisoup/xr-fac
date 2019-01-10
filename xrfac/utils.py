@@ -194,20 +194,3 @@ def getA(levels, transition):
     gA = 2 * ALPHA**3 * omega**2 * gf * RATE_AU
     g = levels['j'][transition['upper']] + 1
     return gA / g
-
-
-class _NeverCloseFile(object):
-    """ work around to avoid close """
-    def __init__(self, file):
-        self.__file = file
-
-    def __getattr__(self, key):
-        if key == 'close':
-            print(key + ' called.')
-            return self._dummy_close
-        elif key == '__file':
-            return getattr(self, '__file')
-        return getattr(self.__file, key)
-
-    def _dummy_close(self):
-        pass

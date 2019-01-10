@@ -45,7 +45,6 @@ def test(files):
     # can be save as another netcdf
     ds_oufofmemory.to_netcdf('tmp.nc')
     os.remove('tmp.nc')
-    warnings.warn('; '.join(ds_oufofmemory.attrs._temporary_files))
 
 
 def test_tr():
