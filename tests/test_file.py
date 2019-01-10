@@ -36,6 +36,14 @@ def test(files):
         else:
             assert (ds_oufofmemory[k] == ds_from_binary[k]).all()
 
+    # make sure the temporary files should be there before loading
+    for f in ds_oufofmemory.attrs._temporary_files:
+        assert os.path.exists(f)
+    # should not be there after close
+    ds_oufofmemory.load()
+    for f in ds_oufofmemory.attrs._temporary_files:
+        assert not os.path.exists(f)
+
 
 def test_tr():
     tr_ascii_file = THIS_DIR + '/example_data/ne_multipole.tr'

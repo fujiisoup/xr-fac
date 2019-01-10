@@ -6,6 +6,9 @@ import xarray as xr
 from . import utils
 
 
+ONE_FILE_ENTRIES = 1000
+
+
 def _F_header(file):
     """ Read common header from file """
     header = OrderedDict()
@@ -141,11 +144,22 @@ def _read_en(header, file, in_memory):
             dim='ilev')
     else:
         files = []
-        for i in range(header['NBlocks']):
+        files = []
+        i = 0
+        while i < header['NBlocks']:
+            count = 0
+            datasets = []
+            while count < ONE_FILE_ENTRIES and i < header['NBlocks']:
+                ds = to_xarray(read_block(file))
+                count += len(ds['ilev'])
+                i += 1
+                datasets.append(ds)
             outfile = tempfile.NamedTemporaryFile(delete=False)
-            to_xarray(read_block(file)).to_netcdf(outfile)
+            xr.concat(datasets, dim='ilev').to_netcdf(outfile)
             files.append(outfile.name)
+
         ds = xr.open_mfdataset(files)
+        ds.attrs._temporary_files = files  # monkey patch for testing
 
     ionization_eng = ds['energy'].min()
     ds.attrs['idx_ground'] = ds['energy'].argmin().values.item()
@@ -200,11 +214,21 @@ def _read_tr(header, file, in_memory):
             dim='itrans')
     else:
         files = []
-        for i in range(header['NBlocks']):
+        i = 0
+        while i < header['NBlocks']:
+            count = 0
+            datasets = []
+            while count < ONE_FILE_ENTRIES and i < header['NBlocks']:
+                ds = to_xarray(read_block(file))
+                count += len(ds['itrans'])
+                i += 1
+                datasets.append(ds)
             outfile = tempfile.NamedTemporaryFile(delete=False)
-            to_xarray(read_block(file)).to_netcdf(outfile)
+            xr.concat(datasets, dim='itrans').to_netcdf(outfile)
             files.append(outfile.name)
-        return xr.open_mfdataset(files)
+        ds = xr.open_mfdataset(files)
+        ds.attrs._temporary_files = files  # monkey patch for testing
+        return ds
 
 
 def _read_sp(header, file, in_memory):
@@ -254,11 +278,22 @@ def _read_sp(header, file, in_memory):
             dim='itrans')
     else:
         files = []
-        for i in range(header['NBlocks']):
+        i = 0
+        while i < header['NBlocks']:
+            count = 0
+            datasets = []
+            while count < ONE_FILE_ENTRIES and i < header['NBlocks']:
+                ds = to_xarray(read_block(file))
+                count += len(ds['itrans'])
+                i += 1
+                datasets.append(ds)
             outfile = tempfile.NamedTemporaryFile(delete=False)
-            to_xarray(read_block(file)).to_netcdf(outfile)
+            xr.concat(datasets, dim='itrans').to_netcdf(outfile)
             files.append(outfile.name)
-        return xr.open_mfdataset(files)
+
+        ds = xr.open_mfdataset(files)
+        ds.attrs._temporary_files = files  # for testing
+        return ds
 
 
 def oscillator_strength(tr, en):
