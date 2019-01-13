@@ -7,6 +7,7 @@ from . import utils
 
 
 ONE_FILE_ENTRIES = 1000
+MAX_SYMMETRIES = 256
 
 
 def _F_header(file):
@@ -320,3 +321,98 @@ def oscillator_strength(tr, en):
     tr['strength'].attrs['about'] = 'The weighted oscillator strength gf.'
     del tr['M']
     return tr
+
+
+def load_ham(filename, in_memory=True):
+    """ read fac hamiltonian file and return as
+    a xarray object.
+
+    Parameters
+    ----------
+    filename: path to the hamiltonian file
+    in_memory: boolean
+        If True, load the file into memory. If False, the file is once
+        converted to netCDF format and saved to temporal location.
+        Then, the lazy load will be performed.
+        Note that for in_memory=False, dask needs to be installed.
+
+    Returns
+    -------
+    obj: xr.DataArray
+    """
+    header = OrderedDict()
+    hamiltonian = []
+    with open(filename, 'rb') as f:
+        header['ng0'] = struct.unpack('i', f.read(4))[0]
+        header['ng'] = struct.unpack('i', f.read(4))[0]
+        header['kg'] = [struct.unpack('i', f.read(4))[0]
+                        for i in range(header['ng'])]
+        header['ngp'] = struct.unpack('i', f.read(4))[0]
+        header['kgp'] = [struct.unpack('i', f.read(4))[0]
+                         for i in range(header['ngp'])]
+
+        return _load_ham(f, header, in_memory)
+
+
+def _load_ham(f, header, in_memory):
+    """ load hamiltonian and return xarray object """
+
+    def load_sym(sym_index):
+        h = OrderedDict()
+        s = struct.unpack('i', f.read(4))[0]
+        dim = struct.unpack('i', f.read(4))[0]
+        if dim <= 0:
+            return None
+
+        orig_dim = struct.unpack('i', f.read(4))[0]
+        n_basis = struct.unpack('i', f.read(4))[0]
+        basis = [struct.unpack('i', f.read(4))[0] for i in range(n_basis)]
+        # number of elements
+        n = struct.unpack('i', f.read(4))[0]
+        h['i'] = np.zeros(n, int)
+        h['j'] = np.zeros(n, int)
+        h['value'] = np.zeros(n, float)
+        h['sym_index'] = sym_index * np.ones(n, int)
+        for i in range(n):
+            h['i'][i] = struct.unpack('i', f.read(4))[0]
+            h['j'][i] = struct.unpack('i', f.read(4))[0]
+            h['value'][i] = struct.unpack('d', f.read(8))[0]
+        return h
+
+    def to_xarray(block):
+        keys = block.keys()
+        ds = xr.DataArray(
+            block['value'], dims=['entry'], coords={
+                k: ('entry', block[k]) for k in keys if k != 'value'},
+                attrs=header, name='value')
+        return ds
+
+    if in_memory:
+        syms = []
+        for i in range(MAX_SYMMETRIES):
+            sym = load_sym(i)
+            if sym is not None:
+                syms.append(to_xarray(sym))
+        return xr.concat(syms, dim='entry')
+    else:
+        tempfile.mkdtemp()
+        files = []
+        i = 0
+        while i < MAX_SYMMETRIES:
+            count = 0
+            datasets = []
+            while count < ONE_FILE_ENTRIES and i < MAX_SYMMETRIES:
+                sym = load_sym(i)
+                if sym is not None:
+                    ds = to_xarray(sym)
+                    datasets.append(ds)
+                    count += len(ds['entry'])
+                i += 1
+            outfile = tempfile.NamedTemporaryFile()
+            xr.concat(datasets, dim='entry').to_netcdf(outfile.name)
+            files.append(outfile)
+
+        filenames = [f.name for f in files]
+        ds = xr.open_mfdataset(filenames)['value']
+        ds.attrs._temporary_files = filenames  # for testing
+        return ds
