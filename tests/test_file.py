@@ -79,3 +79,33 @@ def test_tr_A(files):
 
     A = xrfac.utils.getA(en_bin, tr_bin)
     assert np.allclose(A, tr_ascii['A'])
+
+
+@pytest.mark.parametrize('file', ['Ne03b.ham', 'Al.ham'])
+def test_ham(file):
+    binary_file = THIS_DIR + '/example_data/' + file
+
+    ds_from_binary = xrfac.binary.load_ham(binary_file)
+    ds_oufofmemory = xrfac.binary.load_ham(binary_file, in_memory=False)
+    for k in ds_from_binary.coords:
+        if ds_oufofmemory[k].dtype.kind in 'iuf':
+            assert np.allclose(ds_oufofmemory[k], ds_from_binary[k])
+        else:
+            assert (ds_oufofmemory[k] == ds_from_binary[k]).all()
+
+    # can be load
+    ds_oufofmemory.load()
+    # make sure the temporary files should not be there
+    for f in ds_oufofmemory.attrs._temporary_files:
+        assert not os.path.exists(f)
+    # can be save as another netcdf
+    ds_oufofmemory.to_netcdf('tmp.nc')
+    os.remove('tmp.nc')
+    # at least have some non-diagonal entries
+    nondiag= ds_oufofmemory.isel(
+        entry=ds_oufofmemory['i'] != ds_oufofmemory['j'])
+    assert len(nondiag) > 0
+
+    # set_index -> unstacking should work
+    unstacked = ds_oufofmemory.set_index(
+        entry=['i', 'j', 'sym_index']).unstack('entry')
