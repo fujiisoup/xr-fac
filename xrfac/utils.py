@@ -177,6 +177,14 @@ def eV2nm(eV):
     return hc / eV
 
 
+def nm2eV(nm):
+    """ Convert nm to eV """
+    # h c / lambda
+    # eV -> J : 0.1602e-18
+    hc = H * C * 1.0e9 * J2EV  # to nm
+    return hc / nm
+
+
 def getA(levels, transition):
     """ Get Transition rate by from level and transition file """
     L = transition['multipole']

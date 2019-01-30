@@ -9,3 +9,11 @@ def test_atomic_symbols():
     assert utils.ATOMIC_SYMBOLS.index('Lu') == 71
     assert utils.ATOMIC_SYMBOLS.index('W') == 74
     assert utils.ATOMIC_SYMBOLS.index('Rn') == 86
+
+
+def test_nm2eV():
+    rng = np.random.RandomState(0)
+    for nm in np.exp(rng.randn(100)):
+        eV = utils.nm2eV(nm)
+        nm2 = utils.eV2nm(eV)
+        assert np.allclose(nm, nm2)
