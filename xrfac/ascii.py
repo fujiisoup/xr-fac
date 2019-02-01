@@ -249,3 +249,90 @@ def _read_sp(header, lines):
     ds['energy'].attrs['about'] = 'The transition energy in eV'
     ds['strength'].attrs['about'] = 'The line luminosity in photon/s'
     return ds
+
+
+class _BasisLoader(object):
+    def __init__(self, fac_version='1.1.5'):
+        self.blocks = []
+        self.n_states = None
+        self.lncomplex, self.lsname, self.lname = utils.get_lengths(
+            fac_version)
+
+    def __call__(self, line):
+        if line[0] == '#':
+            self.n_states = int(line[-6:])
+            self.blocks.append(OrderedDict())
+            for k in ['sym_index', 'p', 'j', 'k', 'kgroup', 'kcfg', 'kstate',
+                      'ncomplex', 'sname', 'name']:
+                self.blocks[-1][k] = []
+            return
+        if line == '\n':
+            return
+        self.blocks[-1]['sym_index'].append(int(line[:6]))
+        self.blocks[-1]['p'].append(int(line[9:11]))
+        self.blocks[-1]['j'].append(int(line[12:14]))
+        self.blocks[-1]['k'].append(int(line[18:22]))
+        self.blocks[-1]['kgroup'].append(int(line[23:26]))
+        self.blocks[-1]['kcfg'].append(int(line[27:32]))
+        self.blocks[-1]['kstate'].append(int(line[33:38]))
+        offset = 41
+        self.blocks[-1]['ncomplex'].append(
+            line[offset: offset+self.lncomplex].strip())
+        offset = offset+self.lncomplex + 1
+        self.blocks[-1]['sname'].append(
+            line[offset: offset+self.lsname].strip())
+        offset = offset+self.lsname + 1
+        self.blocks[-1]['name'].append(
+            line[offset: offset+self.lname].strip())
+
+    def finalize(self):
+        """ Just add an index for each symmetry """
+        for block in self.blocks:
+            block['i'] = np.arange(len(block['sym_index']))
+
+
+class _MixcoefLoader():
+    pass
+
+
+def load_basis(filename, return_mixcoef=False, fac_version='1.1.5'):
+    """
+    read fac basis table file and return as an xarray object.
+
+    Parameters
+    ----------
+    filename: path to the hamiltonian file
+    return_mixcoef: boolean
+        if True, also returns mixcoef as xr.Dataset
+
+    Returns
+    -------
+    obj: xr.Dataset
+    """
+    if return_mixcoef:
+        raise NotImplementedError('return_mixcoef=True is not implemented')
+
+    load_basis = _BasisLoader(fac_version)
+    load_mixcoef = _MixcoefLoader()
+
+    loader = None
+    with open(filename, 'r') as f:
+        for line in f:
+            if line[:3] == '===':
+                if loader is None:
+                    loader = load_basis
+                elif loader is load_basis:
+                    if not return_mixcoef:
+                        break
+                    loader = load_mixcoes
+            else:
+                loader(line)
+
+    load_basis.finalize()
+    if not return_mixcoef:
+        blocks = load_basis.blocks
+        keys = blocks[0].keys()
+        ds = xr.Dataset(
+            {k: ('ibasis', np.concatenate([bl[k] for bl in blocks]))
+             for k in keys})
+        return ds

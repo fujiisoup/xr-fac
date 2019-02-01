@@ -323,13 +323,14 @@ def oscillator_strength(tr, en):
     return tr
 
 
-def load_ham(filename, in_memory=True):
+def load_ham(filename, return_basis=False, in_memory=True):
     """ read fac hamiltonian file and return as
     a xarray object.
 
     Parameters
     ----------
     filename: path to the hamiltonian file
+    return_basis: Also returns basis
     in_memory: boolean
         If True, load the file into memory. If False, the file is once
         converted to netCDF format and saved to temporal location.
@@ -339,6 +340,9 @@ def load_ham(filename, in_memory=True):
     Returns
     -------
     obj: xr.DataArray
+
+    if return_basis is True:
+        also returns xr.DataArray
     """
     header = OrderedDict()
     hamiltonian = []
@@ -351,10 +355,10 @@ def load_ham(filename, in_memory=True):
         header['kgp'] = [struct.unpack('i', f.read(4))[0]
                          for i in range(header['ngp'])]
 
-        return _load_ham(f, header, in_memory)
+        return _load_ham(f, header, return_basis, in_memory)
 
 
-def _load_ham(f, header, in_memory):
+def _load_ham(f, header, return_basis, in_memory):
     """ load hamiltonian and return xarray object """
 
     def load_sym(sym_index):
@@ -377,42 +381,83 @@ def _load_ham(f, header, in_memory):
             h['i'][i] = struct.unpack('i', f.read(4))[0]
             h['j'][i] = struct.unpack('i', f.read(4))[0]
             h['value'][i] = struct.unpack('d', f.read(8))[0]
-        return h
+        return h, basis
 
     def to_xarray(block):
-        keys = block.keys()
+        h, basis = block
+        keys = h.keys()
         ds = xr.DataArray(
-            block['value'], dims=['entry'], coords={
-                k: ('entry', block[k]) for k in keys if k != 'value'},
+            h['value'], dims=['entry'], coords={
+                k: ('entry', h[k]) for k in keys if k != 'value'},
                 attrs=header, name='value')
-        return ds
+        basis = xr.DataArray(
+            basis, dims=['i'],
+            coords={'sym': h['sym_index'][0], 'i': np.arange(len(basis))},
+            attrs=header, name='basis')
+        return ds, basis
 
     if in_memory:
         syms = []
+        basis = []
         for i in range(MAX_SYMMETRIES):
             sym = load_sym(i)
             if sym is not None:
-                syms.append(to_xarray(sym))
+                h, b = to_xarray(sym)
+                syms.append(h)
+                basis.append(b)
+        if return_basis:
+            return xr.concat(syms, dim='entry'), xr.concat(basis, dim='i')
         return xr.concat(syms, dim='entry')
     else:
         tempfile.mkdtemp()
         files = []
+        basis_files = []
         i = 0
         while i < MAX_SYMMETRIES:
             count = 0
             datasets = []
+            basis_sets = []
             while count < ONE_FILE_ENTRIES and i < MAX_SYMMETRIES:
                 sym = load_sym(i)
                 if sym is not None:
-                    ds = to_xarray(sym)
-                    datasets.append(ds)
-                    count += len(ds['entry'])
+                    ham, basis = to_xarray(sym)
+                    datasets.append(ham)
+                    basis_sets.append(basis)
+                    count += len(ham['entry'])
                 i += 1
             outfile = tempfile.NamedTemporaryFile()
             xr.concat(datasets, dim='entry').to_netcdf(outfile.name)
             files.append(outfile)
+            if return_basis:
+                outfile = tempfile.NamedTemporaryFile()
+                xr.concat(basis_sets, dim='i').to_netcdf(outfile.name)
+                basis_files.append(outfile)
 
         filenames = [f.name for f in files]
         ds = xr.open_mfdataset(filenames)['value']
         ds.attrs._temporary_files = filenames  # for testing
+        if return_basis:
+            filenames = [f.name for f in basis_files]
+            basis = xr.open_mfdataset(filenames)['basis']
+            basis.attrs._temporary_files = filenames  # for testing
+            return ds, basis
+
         return ds
+
+def load_basis(filename, return_mixcoef=False, fac_version='1.1.5'):
+    """
+    read fac basis table file and return as an xarray object.
+
+    Parameters
+    ----------
+    filename: path to the hamiltonian file
+    return_mixcoef: boolean
+        if True, also returns mixcoef as xr.Dataset
+
+    Returns
+    -------
+    obj: xr.Dataset
+    """
+    # since the file itself is ascii, just call ascii.load_basis
+    from . import ascii
+    return ascii.load_basis(filename, return_mixcoef, fac_version)

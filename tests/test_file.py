@@ -109,3 +109,46 @@ def test_ham(file):
     # set_index -> unstacking should work
     unstacked = ds_oufofmemory.set_index(
         entry=['i', 'j', 'sym_index']).unstack('entry')
+
+
+@pytest.mark.parametrize('file', ['Ne03b.ham', 'Al.ham'])
+def test_ham_basis(file):
+    binary_file = THIS_DIR + '/example_data/' + file
+
+    _, ds_from_binary = xrfac.binary.load_ham(binary_file, return_basis=True)
+    _, ds_oufofmemory = xrfac.binary.load_ham(
+        binary_file, return_basis=True, in_memory=False)
+    for k in ds_from_binary.coords:
+        if ds_oufofmemory[k].dtype.kind in 'iuf':
+            assert np.allclose(ds_oufofmemory[k], ds_from_binary[k])
+        else:
+            assert (ds_oufofmemory[k] == ds_from_binary[k]).all()
+
+    # can be load
+    ds_oufofmemory.load()
+    # make sure the temporary files should not be there
+    for f in ds_oufofmemory.attrs._temporary_files:
+        assert not os.path.exists(f)
+    # can be save as another netcdf
+    ds_oufofmemory.to_netcdf('tmp.nc')
+    os.remove('tmp.nc')
+
+
+@pytest.mark.parametrize('files', [
+    ('O.basis', 'O.ham')
+])
+def test_basis(files):
+    basis_file = THIS_DIR + '/example_data/' + files[0]
+    ham_file = THIS_DIR + '/example_data/' + files[1]
+    basis = xrfac.ascii.load_basis(basis_file)
+    ham, basis_list = xrfac.binary.load_ham(ham_file, return_basis=True)
+    print(ham)
+
+    # sym_index in hamiltonian should be included in basis
+    assert ham['sym_index'].isin(basis['sym_index']).all()
+    for sym in np.unique(ham['sym_index']):
+        # maximum index in hamiltonian should not exceed number of basis
+        ham1 = ham.isel(entry=ham['sym_index'] == sym)
+        bas1 = basis.isel(ibasis=basis['sym_index'] == sym)
+        assert (bas1['i'] <= ham1['i'].max()).all()
+        assert (bas1['i'] <= ham1['j'].max()).all()
