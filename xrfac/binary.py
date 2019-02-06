@@ -125,6 +125,7 @@ def _read_en(header, file, in_memory):
             p = p * parity
             n = np.int8(p // 100)
             l = np.int8(p - n * 100)
+            parity = 0 if parity > 0 else 1
             block['parity'][i], block['n'][i], block['l'][i] = parity, n, l
             block['j'][i] = struct.unpack('h', file.read(2))[0]
             block['ilev'][i] = struct.unpack('i', file.read(4))[0]

@@ -129,7 +129,7 @@ def _read_en(header, lines):
             block['ilev'][i] = int(line[:7])
             block['ibase'][i] = int(line[8:14])
             block['energy'][i] = float(line[15:30])
-            block['parity'][i] = 1 - np.int8(line[30:32]) * 2
+            block['parity'][i] = np.int8(line[30:32])
             vnl = int(line[33:38])
             block['n'][i] = np.int8(vnl // 100)
             block['l'][i] = np.int8(vnl - block['n'][i] * 100)
