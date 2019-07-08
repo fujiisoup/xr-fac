@@ -202,3 +202,12 @@ def getA(levels, transition):
     gA = 2 * ALPHA**3 * omega**2 * gf * RATE_AU
     g = levels['j'][transition['upper']] + 1
     return gA / g
+
+
+def decode_pj(sym_index):
+    """ A small function to get parity and J from sym_index
+    sym_index can be a vector
+    """
+    p = sym_index % 2
+    j = sym_index // 2
+    return p, j
