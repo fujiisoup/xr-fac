@@ -336,3 +336,61 @@ def load_basis(filename, return_mixcoef=False, fac_version='1.1.5'):
             {k: ('ibasis', np.concatenate([bl[k] for bl in blocks]))
              for k in keys})
         return ds
+
+
+def load_rate(filename):
+    """
+    read fac rate file and return as an xarray object.
+
+    Parameters
+    ----------
+    filename: path to rate file.
+
+    Returns
+    -------
+    obj: xr.Dataset
+    """
+    upper = []
+    lower = []
+    rates = []
+    inv_rates = []
+    nt = 1
+
+    with open(filename) as f:
+        lines = f.readlines()
+
+    nt = int(lines[0][33:38].strip())
+    temperatures = np.zeros(nt)
+    for i in range(nt):
+        temperatures[i] = float(lines[i + 1][:12])
+
+    rate = []
+    inv_rate = []
+    while len(lines) > 0:
+        line = lines.pop(0)
+        if line[0] == '#':
+            lower.append(int(line[1:8]))
+            upper.append(int(line[12:17]))
+        elif len(line) <= 1:
+            if len(rate) > 0:
+                assert len(rate) == nt
+                assert len(inv_rate) == nt
+                rates.append(rate)
+                inv_rates.append(inv_rate)
+                rate = []
+                inv_rate = []
+        else:  # rate
+            rate.append(float(line[13:24]))
+            inv_rate.append(float(line[25:36]))
+
+    if len(rate) > 0:
+        assert len(rate) == nt
+        assert len(inv_rate) == nt
+        rates.append(rate)
+        inv_rates.append(inv_rate)
+
+    return xr.Dataset({'rate': (('itrans', 'temperature'), rates),
+                       'inv_rate': (('itrans', 'temperature'), inv_rates)},
+                      coords={'upper': ('itrans', upper),
+                              'lower': ('itrans', lower),
+                              'temperature': temperatures})
