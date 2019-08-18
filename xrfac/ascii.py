@@ -53,6 +53,8 @@ def load(filename):
         return _read_en(header, lines)
     if header['Type'] == 2:
         return _read_tr(header, lines)
+    if header['Type'] == 5:
+        return _read_ai(header, lines)
     if header['Type'] == 7:
         return _read_sp(header, lines)
 
@@ -198,6 +200,51 @@ def _read_tr(header, lines):
     ds['lower'].attrs['about'] = 'The lower level index of the transition.'
     ds['upper'].attrs['about'] = 'The upper level index of the transition.'
     ds['strength'].attrs['about'] = 'The weighted oscillator strength gf.'
+    return ds
+
+
+def _read_ai(header, lines):
+    def read_blocks(lines):
+        block = OrderedDict()
+        block['nele'], lines = _read_value(lines, int)
+        ntrans, lines = _read_value(lines, int)
+        emin, lines = _read_value(lines, float)
+        negrid, lines = _read_value(lines, int)
+        # just ignore e_grid
+        for _ in range(negrid):
+            _, lines = _read_value(lines, float)
+
+        # convert to array
+        block = {key: np.full(ntrans, val) for key, val in block.items()}
+
+        # read the values
+        block['lower'] = np.zeros(ntrans, dtype=int)
+        block['upper'] = np.zeros(ntrans, dtype=int)
+        block['rate'] = np.zeros(ntrans, dtype=float)
+
+        for i, line in enumerate(lines):
+            if line.strip() == '':  # if empty
+                return lines[i+1:], block
+            block['lower'][i] = int(line[:7])
+            block['upper'][i] = int(line[11:17])
+            block['rate'][i] = float(line[33:44])
+
+        return None, block
+
+    lines = lines[1:]
+    lines, block = read_blocks(lines)
+    blocks = [block]
+    while lines is not None:
+        lines, block = read_blocks(lines)
+        blocks.append(block)
+
+    keys = blocks[0].keys()
+    ds = xr.Dataset(
+        {k: ('itrans', np.concatenate([bl[k] for bl in blocks]))
+         for k in keys}, attrs=header)
+    ds['lower'].attrs['about'] = 'The lower level index of the transition.'
+    ds['upper'].attrs['about'] = 'The upper level index of the transition.'
+    ds['rate'].attrs['about'] = 'The autoionization rate.'
     return ds
 
 

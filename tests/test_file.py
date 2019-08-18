@@ -12,6 +12,7 @@ THIS_DIR = os.path.abspath(os.path.dirname(__file__))
      ('ne.lev', 'ne.lev.b'),
      ('ne.tr', 'ne.tr.b'),
      ('Ne03a.en', 'Ne03b.en'),  # 1.1.5
+     ('se.ai', 'se.ai.b'),
      ('resulta.sp', 'resultb.sp'),
      ])
 def test(files):
@@ -22,7 +23,7 @@ def test(files):
     ds_from_binary = xrfac.binary.load(binary_file)
     for k in ds_from_binary.variables:
         if ds_from_ascii[k].dtype.kind in 'iuf':
-            if k in ['strength', 'rrate', 'trate']:
+            if k in ['strength', 'rrate', 'trate', 'rate']:
                 assert np.allclose(ds_from_ascii[k], ds_from_binary[k],
                                    rtol=1e-4)
             else:
