@@ -51,6 +51,8 @@ def load(filename, in_memory=True):
             return _read_en(header, f, in_memory=in_memory)
         if header['Type'] == 2:
             return _read_tr(header, f, in_memory=in_memory)
+        if header['Type'] == 5:
+            return _read_ai(header, f, in_memory=in_memory)
         if header['Type'] == 7:
             return _read_sp(header, f, in_memory=in_memory)
 
@@ -213,6 +215,68 @@ def _read_tr(header, file, in_memory):
             ds['strength'].attrs['about'] = 'The weighted oscillator strength gf.'
         if 'M' in ds:
             ds['M'].attrs['about'] = 'The multipole matrix elements M.'
+        return ds
+
+    if in_memory:
+        return xr.concat(
+            [to_xarray(read_block(file)) for i in range(header['NBlocks'])],
+            dim='itrans')
+    else:
+        files = []
+        i = 0
+        while i < header['NBlocks']:
+            count = 0
+            datasets = []
+            while count < ONE_FILE_ENTRIES and i < header['NBlocks']:
+                ds = to_xarray(read_block(file))
+                count += len(ds['itrans'])
+                i += 1
+                datasets.append(ds)
+            outfile = tempfile.NamedTemporaryFile()
+            xr.concat(datasets, dim='itrans').to_netcdf(outfile.name)
+            files.append(outfile)
+
+        filenames = [f.name for f in files]
+        ds = xr.open_mfdataset(filenames)
+        ds.attrs._temporary_files = filenames  # for testing
+        return ds
+
+
+def _read_ai(header, file, in_memory):
+
+    def read_block(file):
+        block = OrderedDict()
+        position = struct.unpack('l', file.read(8))[0]
+        length = struct.unpack('l', file.read(8))[0]
+        block['nele'] = struct.unpack('i', file.read(4))[0]
+        ntrans = struct.unpack('i', file.read(4))[0]
+        # just emin
+        _ = struct.unpack('f', file.read(4))[0]
+        negrid = struct.unpack('i', file.read(4))[0]
+        # just ignore e_grid
+        _ = [struct.unpack('d', file.read(8))[0] for _ in range(negrid)]
+
+        # convert to array
+        block = {key: np.full(ntrans, val) for key, val in block.items()}
+
+        # read the values
+        block['lower'] = np.zeros(ntrans, dtype=int)
+        block['upper'] = np.zeros(ntrans, dtype=int)
+        block['rate'] = np.zeros(ntrans, dtype=np.float32)
+        for i in range(ntrans):
+            block['lower'][i] = struct.unpack('i', file.read(4))[0]
+            block['upper'][i] = struct.unpack('i', file.read(4))[0]
+            block['rate'][i] = struct.unpack('f', file.read(4))[0]
+        return block
+
+    def to_xarray(block):
+        keys = block.keys()
+        ds = xr.Dataset(
+            {k: ('itrans', block[k]) for k in keys}, attrs=header)
+        ds['lower'].attrs['about'] = 'The lower (bounded) level index of the transition.'
+        ds['upper'].attrs['about'] = 'The upper (free) level index of the transition.'
+        ds['rate'] = ds['rate'] * utils.RATE_AU
+        ds['rate'].attrs['about'] = 'The autoionization rate.'
         return ds
 
     if in_memory:

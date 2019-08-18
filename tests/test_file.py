@@ -12,6 +12,7 @@ THIS_DIR = os.path.abspath(os.path.dirname(__file__))
      ('ne.lev', 'ne.lev.b'),
      ('ne.tr', 'ne.tr.b'),
      ('Ne03a.en', 'Ne03b.en'),  # 1.1.5
+     ('se.ai', 'se.ai.b'),
      ('resulta.sp', 'resultb.sp'),
      ])
 def test(files):
@@ -22,7 +23,7 @@ def test(files):
     ds_from_binary = xrfac.binary.load(binary_file)
     for k in ds_from_binary.variables:
         if ds_from_ascii[k].dtype.kind in 'iuf':
-            if k in ['strength', 'rrate', 'trate']:
+            if k in ['strength', 'rrate', 'trate', 'rate']:
                 assert np.allclose(ds_from_ascii[k], ds_from_binary[k],
                                    rtol=1e-4)
             else:
@@ -152,3 +153,22 @@ def test_basis(files):
         bas1 = basis.isel(ibasis=basis['sym_index'] == sym)
         assert (bas1['i'] <= ham1['i'].max()).all()
         assert (bas1['i'] <= ham1['j'].max()).all()
+
+
+@pytest.mark.parametrize('files', [
+    ('Fe_crm_small/Fe.cer', 'Fe_crm_small/Fe.ce', 'Fe_crm_small/Fe.en'),
+    ('Fe_crm_small/Fe.cir', 'Fe_crm_small/Fe.ci', 'Fe_crm_small/Fe.en'),
+])
+def test_basis(files):
+    rate_file = THIS_DIR + '/example_data/' + files[0]
+    en_file = THIS_DIR + '/example_data/' + files[2]
+    rate = xrfac.ascii.load_rate(rate_file)
+    en = xrfac.binary.load(en_file)
+    # make sure all the upper or lower is in en file
+    upper = en.sel(ilev=rate['upper'])  # with no error
+    lower = en.sel(ilev=rate['lower'])  # with no error
+    # make sure upper has a larger energy
+    assert (upper['energy'] > lower['energy']).all()
+    # make sure rate is all non-null
+    assert rate['rate'].isnull().sum() == 0
+    assert rate['inv_rate'].isnull().sum() == 0

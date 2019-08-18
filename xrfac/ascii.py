@@ -53,6 +53,8 @@ def load(filename):
         return _read_en(header, lines)
     if header['Type'] == 2:
         return _read_tr(header, lines)
+    if header['Type'] == 5:
+        return _read_ai(header, lines)
     if header['Type'] == 7:
         return _read_sp(header, lines)
 
@@ -201,6 +203,51 @@ def _read_tr(header, lines):
     return ds
 
 
+def _read_ai(header, lines):
+    def read_blocks(lines):
+        block = OrderedDict()
+        block['nele'], lines = _read_value(lines, int)
+        ntrans, lines = _read_value(lines, int)
+        emin, lines = _read_value(lines, float)
+        negrid, lines = _read_value(lines, int)
+        # just ignore e_grid
+        for _ in range(negrid):
+            _, lines = _read_value(lines, float)
+
+        # convert to array
+        block = {key: np.full(ntrans, val) for key, val in block.items()}
+
+        # read the values
+        block['lower'] = np.zeros(ntrans, dtype=int)
+        block['upper'] = np.zeros(ntrans, dtype=int)
+        block['rate'] = np.zeros(ntrans, dtype=float)
+
+        for i, line in enumerate(lines):
+            if line.strip() == '':  # if empty
+                return lines[i+1:], block
+            block['lower'][i] = int(line[:7])
+            block['upper'][i] = int(line[11:17])
+            block['rate'][i] = float(line[33:44])
+
+        return None, block
+
+    lines = lines[1:]
+    lines, block = read_blocks(lines)
+    blocks = [block]
+    while lines is not None:
+        lines, block = read_blocks(lines)
+        blocks.append(block)
+
+    keys = blocks[0].keys()
+    ds = xr.Dataset(
+        {k: ('itrans', np.concatenate([bl[k] for bl in blocks]))
+         for k in keys}, attrs=header)
+    ds['lower'].attrs['about'] = 'The lower level index of the transition.'
+    ds['upper'].attrs['about'] = 'The upper level index of the transition.'
+    ds['rate'].attrs['about'] = 'The autoionization rate.'
+    return ds
+
+
 def _read_sp(header, lines):
     def read_blocks(lines):
         block = OrderedDict()
@@ -336,3 +383,61 @@ def load_basis(filename, return_mixcoef=False, fac_version='1.1.5'):
             {k: ('ibasis', np.concatenate([bl[k] for bl in blocks]))
              for k in keys})
         return ds
+
+
+def load_rate(filename):
+    """
+    read fac rate file and return as an xarray object.
+
+    Parameters
+    ----------
+    filename: path to rate file.
+
+    Returns
+    -------
+    obj: xr.Dataset
+    """
+    upper = []
+    lower = []
+    rates = []
+    inv_rates = []
+    nt = 1
+
+    with open(filename) as f:
+        lines = f.readlines()
+
+    nt = int(lines[0][33:38].strip())
+    temperatures = np.zeros(nt)
+    for i in range(nt):
+        temperatures[i] = float(lines[i + 1][:12])
+
+    rate = []
+    inv_rate = []
+    while len(lines) > 0:
+        line = lines.pop(0)
+        if line[0] == '#':
+            lower.append(int(line[1:8]))
+            upper.append(int(line[12:17]))
+        elif len(line) <= 1:
+            if len(rate) > 0:
+                assert len(rate) == nt
+                assert len(inv_rate) == nt
+                rates.append(rate)
+                inv_rates.append(inv_rate)
+                rate = []
+                inv_rate = []
+        else:  # rate
+            rate.append(float(line[13:24]))
+            inv_rate.append(float(line[25:36]))
+
+    if len(rate) > 0:
+        assert len(rate) == nt
+        assert len(inv_rate) == nt
+        rates.append(rate)
+        inv_rates.append(inv_rate)
+
+    return xr.Dataset({'rate': (('itrans', 'temperature'), rates),
+                       'inv_rate': (('itrans', 'temperature'), inv_rates)},
+                      coords={'upper': ('itrans', upper),
+                              'lower': ('itrans', lower),
+                              'temperature': temperatures})
