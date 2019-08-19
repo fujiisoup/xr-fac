@@ -397,6 +397,44 @@ def load_rate(filename):
     -------
     obj: xr.Dataset
     """
+    nt = 1
+
+    with open(filename) as f:
+        lines = f.readlines()
+
+    nt = int(lines[0][33:38].strip())
+    temperatures = np.zeros(nt)
+    for i in range(nt):
+        temperatures[i] = float(lines[i + 1][:12])
+
+    rate = []
+    inv_rate = []
+
+    n = len(lines) // (nt + 1 + 2)  # 1: header, 2: line break
+    data_lines = []
+    for i in range(n):
+        data_lines += lines[(nt + 3)*i + 1: (nt + 3)*i + 1 + nt]
+    header_lines = [lines[(nt + 3)*i][1:21] for i in range(n)]
+
+    data = np.genfromtxt(data_lines).reshape(n, nt, 3)
+    header = np.genfromtxt(header_lines, dtype=int)
+
+    lower = header[:, 0]
+    upper = header[:, 2]
+    rates = data[:, :, 1]
+    inv_rates = data[:, :, 2]
+
+    return xr.Dataset({'rate': (('itrans', 'temperature'), rates),
+                       'inv_rate': (('itrans', 'temperature'), inv_rates)},
+                      coords={'upper': ('itrans', upper),
+                              'lower': ('itrans', lower),
+                              'temperature': temperatures})
+
+
+def _load_rate_slow(filename):
+    """
+    Slow version of load_rate. Only used for the testing purpose
+    """
     upper = []
     lower = []
     rates = []

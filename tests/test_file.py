@@ -172,3 +172,6 @@ def test_basis(files):
     # make sure rate is all non-null
     assert rate['rate'].isnull().sum() == 0
     assert rate['inv_rate'].isnull().sum() == 0
+
+    rate_slow = xrfac.ascii._load_rate_slow(rate_file)
+    assert rate.equals(rate_slow)
