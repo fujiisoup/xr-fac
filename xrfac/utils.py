@@ -32,7 +32,9 @@ ATOMIC_SYMBOLS = [
     'Cs', 'Ba', 'La', 'Ce', 'Pr', 'Nd', 'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy',
     'Ho', 'Er', 'Tm', 'Yb', 'Lu',
     'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg', 'Tl', 'Pb', 'Bi', 'Po',
-    'At', 'Rn'
+    'At', 'Rn',
+    # period 7
+    'Fr', 'Ra', 'Ac', 'Th', 'U'
 ]
 
 
