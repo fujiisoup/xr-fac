@@ -347,7 +347,7 @@ class _MixcoefLoader():
         if line[0] == '#':
             self.n_basis = int(line[19:26])
             self.blocks.append(OrderedDict())
-            for k in ['ilev', 'sym_index', 'p', 'j', 'k', 'si', 'kgroup', 'kcfg', 'kstate', 'mixing']:
+            for k in ['ilev', 'sym_index', 'p', 'j', 'k', 'ibasis', 'kgroup', 'kcfg', 'kstate', 'mixing']:
                 self.blocks[-1][k] = []
             return
         if line == '\n':
@@ -357,7 +357,7 @@ class _MixcoefLoader():
         self.blocks[-1]['p'].append(int(line[13:15]))
         self.blocks[-1]['j'].append(int(line[16:18]))
         self.blocks[-1]['k'].append(int(line[19:26]))
-        self.blocks[-1]['si'].append(int(line[27:32]))
+        self.blocks[-1]['ibasis'].append(int(line[27:32]))
         self.blocks[-1]['kgroup'].append(int(line[33:36]))
         self.blocks[-1]['kcfg'].append(int(line[37:42]))
         self.blocks[-1]['kstate'].append(int(line[43:48]))
