@@ -339,7 +339,34 @@ class _BasisLoader(object):
 
 
 class _MixcoefLoader():
-    pass
+    def __init__(self):
+        self.blocks = []
+        self.n_basis = None
+
+    def __call__(self, line):
+        if line[0] == '#':
+            self.n_basis = int(line[19:26])
+            self.blocks.append(OrderedDict())
+            for k in ['ilev', 'sym_index', 'p', 'j', 'k', 'si', 'kgroup', 'kcfg', 'kstate', 'mixing']:
+                self.blocks[-1][k] = []
+            return
+        if line == '\n':
+            return
+        self.blocks[-1]['ilev'].append(int(line[:6]))
+        self.blocks[-1]['sym_index'].append(int(line[9:12]))
+        self.blocks[-1]['p'].append(int(line[13:15]))
+        self.blocks[-1]['j'].append(int(line[16:18]))
+        self.blocks[-1]['k'].append(int(line[19:26]))
+        self.blocks[-1]['si'].append(int(line[27:32]))
+        self.blocks[-1]['kgroup'].append(int(line[33:36]))
+        self.blocks[-1]['kcfg'].append(int(line[37:42]))
+        self.blocks[-1]['kstate'].append(int(line[43:48]))
+        self.blocks[-1]['mixing'].append(float(line[51:67]))
+
+    def finalize(self):
+        """ Just add an index for each symmetry """
+        for block in self.blocks:
+            block['i'] = np.arange(len(block['sym_index']))
 
 
 def load_basis(filename, return_mixcoef=False, fac_version='1.1.5'):
@@ -356,9 +383,6 @@ def load_basis(filename, return_mixcoef=False, fac_version='1.1.5'):
     -------
     obj: xr.Dataset
     """
-    if return_mixcoef:
-        raise NotImplementedError('return_mixcoef=True is not implemented')
-
     load_basis = _BasisLoader(fac_version)
     load_mixcoef = _MixcoefLoader()
 
@@ -371,18 +395,27 @@ def load_basis(filename, return_mixcoef=False, fac_version='1.1.5'):
                 elif loader is load_basis:
                     if not return_mixcoef:
                         break
-                    loader = load_mixcoes
+                    loader = load_mixcoef
             else:
                 loader(line)
 
     load_basis.finalize()
+    blocks = load_basis.blocks
+    keys = blocks[0].keys()
+    ds = xr.Dataset(
+        {k: ('ibasis', np.concatenate([bl[k] for bl in blocks]))
+            for k in keys})
+    
     if not return_mixcoef:
-        blocks = load_basis.blocks
-        keys = blocks[0].keys()
-        ds = xr.Dataset(
-            {k: ('ibasis', np.concatenate([bl[k] for bl in blocks]))
-             for k in keys})
         return ds
+
+    load_mixcoef.finalize()
+    blocks = load_mixcoef.blocks
+    keys = blocks[0].keys()
+    ds_mixcoef = xr.Dataset(
+        {k: ('imixcoef', np.concatenate([bl[k] for bl in blocks]))
+            for k in keys})
+    return ds, ds_mixcoef
 
 
 def load_rate(filename):

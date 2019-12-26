@@ -168,7 +168,7 @@ def _read_en(header, file, in_memory):
 
         filenames = [f.name for f in files]
         ds = xr.open_mfdataset(filenames)
-        ds.attrs._temporary_files = filenames  # for testing
+        ds.attrs['_temporary_files'] = filenames  # for testing
 
     ionization_eng = ds['energy'].min()
     ds.attrs['idx_ground'] = ds['energy'].argmin().values.item()
@@ -238,7 +238,7 @@ def _read_tr(header, file, in_memory):
 
         filenames = [f.name for f in files]
         ds = xr.open_mfdataset(filenames)
-        ds.attrs._temporary_files = filenames  # for testing
+        ds.attrs['_temporary_files'] = filenames  # for testing
         return ds
 
 
@@ -300,7 +300,7 @@ def _read_ai(header, file, in_memory):
 
         filenames = [f.name for f in files]
         ds = xr.open_mfdataset(filenames)
-        ds.attrs._temporary_files = filenames  # for testing
+        ds.attrs['_temporary_files'] = filenames  # for testing
         return ds
 
 
@@ -367,7 +367,7 @@ def _read_sp(header, file, in_memory):
 
         filenames = [f.name for f in files]
         ds = xr.open_mfdataset(filenames)
-        ds.attrs._temporary_files = filenames  # for testing
+        ds.attrs['_temporary_files'] = filenames  # for testing
         return ds
 
 
@@ -500,11 +500,11 @@ def _load_ham(f, header, return_basis, in_memory):
 
         filenames = [f.name for f in files]
         ds = xr.open_mfdataset(filenames)['value']
-        ds.attrs._temporary_files = filenames  # for testing
+        ds.attrs['_temporary_files'] = filenames  # for testing
         if return_basis:
             filenames = [f.name for f in basis_files]
             basis = xr.open_mfdataset(filenames)['basis']
-            basis.attrs._temporary_files = filenames  # for testing
+            basis.attrs['_temporary_files'] = filenames  # for testing
             return ds, basis
 
         return ds
