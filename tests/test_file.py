@@ -41,7 +41,7 @@ def test(files):
     # can be load
     ds_oufofmemory.load()
     # make sure the temporary files should not be there
-    for f in ds_oufofmemory.attrs._temporary_files:
+    for f in ds_oufofmemory.attrs['_temporary_files']:
         assert not os.path.exists(f)
     # can be save as another netcdf
     ds_oufofmemory.to_netcdf('tmp.nc')
@@ -97,7 +97,7 @@ def test_ham(file):
     # can be load
     ds_oufofmemory.load()
     # make sure the temporary files should not be there
-    for f in ds_oufofmemory.attrs._temporary_files:
+    for f in ds_oufofmemory.attrs['_temporary_files']:
         assert not os.path.exists(f)
     # can be save as another netcdf
     ds_oufofmemory.to_netcdf('tmp.nc')
@@ -128,7 +128,7 @@ def test_ham_basis(file):
     # can be load
     ds_oufofmemory.load()
     # make sure the temporary files should not be there
-    for f in ds_oufofmemory.attrs._temporary_files:
+    for f in ds_oufofmemory.attrs['_temporary_files']:
         assert not os.path.exists(f)
     # can be save as another netcdf
     ds_oufofmemory.to_netcdf('tmp.nc')
@@ -136,14 +136,14 @@ def test_ham_basis(file):
 
 
 @pytest.mark.parametrize('files', [
-    ('O.basis', 'O.ham')
+    ('O.basis', 'O.ham'),
+    ('Ni_small.basis', 'Ni_small.ham')
 ])
 def test_basis(files):
     basis_file = THIS_DIR + '/example_data/' + files[0]
     ham_file = THIS_DIR + '/example_data/' + files[1]
     basis = xrfac.ascii.load_basis(basis_file)
     ham, basis_list = xrfac.binary.load_ham(ham_file, return_basis=True)
-    print(ham)
 
     # sym_index in hamiltonian should be included in basis
     assert ham['sym_index'].isin(basis['sym_index']).all()
@@ -154,12 +154,22 @@ def test_basis(files):
         assert (bas1['i'] <= ham1['i'].max()).all()
         assert (bas1['i'] <= ham1['j'].max()).all()
 
+    # mixcoef
+    basis, mixcoef = xrfac.ascii.load_basis(basis_file, return_mixcoef=True)
+    assert ham['sym_index'].isin(mixcoef['sym_index']).all()
+    for sym in np.unique(ham['sym_index']):
+        # maximum index in hamiltonian should not exceed number of basis
+        ham1 = ham.isel(entry=ham['sym_index'] == sym)
+        coef1 = mixcoef.isel(imixcoef=mixcoef['sym_index'] == sym)
+        assert (coef1['i'] <= ham1['i'].max()).all()
+        assert (coef1['i'] <= ham1['j'].max()).all()
+
 
 @pytest.mark.parametrize('files', [
     ('Fe_crm_small/Fe.cer', 'Fe_crm_small/Fe.ce', 'Fe_crm_small/Fe.en'),
     ('Fe_crm_small/Fe.cir', 'Fe_crm_small/Fe.ci', 'Fe_crm_small/Fe.en'),
 ])
-def test_basis(files):
+def test_rate(files):
     rate_file = THIS_DIR + '/example_data/' + files[0]
     en_file = THIS_DIR + '/example_data/' + files[2]
     rate = xrfac.ascii.load_rate(rate_file)
