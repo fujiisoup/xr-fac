@@ -28,7 +28,7 @@ def _F_header(file):
     return header, file
 
 
-def load(filename, in_memory=True):
+def load(filename, in_memory=True, **kwargs):
     """ read fac output file, detect filetype automatically and return as
     a xarray object.
 
@@ -40,6 +40,11 @@ def load(filename, in_memory=True):
         converted to netCDF format and saved to temporal location.
         Then, the lazy load will be performed.
         Note that for in_memory=False, dask needs to be installed.
+    
+    Other Parameters
+    ----------------
+    only_pop: 
+        If True, returns only population, valid for .sp file
 
     Returns
     -------
@@ -54,7 +59,7 @@ def load(filename, in_memory=True):
         if header['Type'] == 5:
             return _read_ai(header, f, in_memory=in_memory)
         if header['Type'] == 7:
-            return _read_sp(header, f, in_memory=in_memory)
+            return _read_sp(header, f, in_memory=in_memory, **kwargs)
 
         raise NotImplementedError(
             'File type {} is not yet implemented.'.format(header['Type']))
@@ -304,7 +309,7 @@ def _read_ai(header, file, in_memory):
         return ds
 
 
-def _read_sp(header, file, in_memory):
+def _read_sp(header, file, in_memory, only_pop=False):
     lncomplex, lsname, lname = utils.get_lengths(header['FAC'])
 
     def read_block(file):
@@ -318,6 +323,7 @@ def _read_sp(header, file, in_memory):
         block['icomplex'] = file.read(lncomplex).strip(b'\x00').strip()
         block['fcomplex'] = file.read(lncomplex).strip(b'\x00').strip()
         block['TYPE'] = struct.unpack('i', file.read(4))[0]
+
         # convert to array
         block = {key: np.full(ntrans, val) for key, val in block.items()}
 
@@ -346,9 +352,13 @@ def _read_sp(header, file, in_memory):
         return ds
 
     if in_memory:
-        return xr.concat(
-            [to_xarray(read_block(file)) for i in range(header['NBlocks'])],
-            dim='itrans')
+        blocks = []
+        for i in range(header['NBlocks']):
+            block = read_block(file)
+            if only_pop and (block['TYPE'] != 0).all():
+                break
+            blocks.append(to_xarray(block))
+        return xr.concat(blocks, dim='itrans')
     else:
         tempfile.mkdtemp()
         files = []
@@ -357,7 +367,10 @@ def _read_sp(header, file, in_memory):
             count = 0
             datasets = []
             while count < ONE_FILE_ENTRIES and i < header['NBlocks']:
-                ds = to_xarray(read_block(file))
+                block = read_block(file)
+                if only_pop and (block['TYPE'] != 0).all():
+                    break
+                ds = to_xarray(block)
                 count += len(ds['itrans'])
                 i += 1
                 datasets.append(ds)

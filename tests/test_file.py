@@ -185,3 +185,11 @@ def test_rate(files):
 
     rate_slow = xrfac.ascii._load_rate_slow(rate_file)
     assert rate.equals(rate_slow)
+
+
+def test_sp_only_pop():
+    filename = THIS_DIR + '/example_data/' + 'resultb.sp'
+    actual = xrfac.binary.load(filename, only_pop=True)
+    sp = xrfac.binary.load(filename, only_pop=False)
+    expected = sp.isel(itrans=sp['TYPE'] == 0)
+    assert actual.equals(expected)
