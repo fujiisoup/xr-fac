@@ -190,8 +190,9 @@ def nm2eV(nm):
 def getA(levels, transition):
     """ Get Transition rate by from level and transition file """
     L = transition['multipole']
-    omega = eV2hartree(levels['energy'][transition['upper']] -
-                       levels['energy'][transition['lower']])
+    upper_levels = levels.isel(ilev=transition['upper'])
+    lower_levels = levels.isel(ilev=transition['lower'])
+    omega = eV2hartree(upper_levels['energy'] - lower_levels['energy'])
 
     if 'strength' in transition:
         gf = transition['strength']
@@ -202,7 +203,7 @@ def getA(levels, transition):
         raise ValueError('multipole is expected all zero or all non-zero.')
 
     gA = 2 * ALPHA**3 * omega**2 * gf * RATE_AU
-    g = levels['j'][transition['upper']] + 1
+    g = upper_levels['j'] + 1
     return gA / g
 
 
