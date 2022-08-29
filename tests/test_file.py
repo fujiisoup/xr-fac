@@ -8,6 +8,15 @@ import xrfac
 THIS_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
+@pytest.mark.parametrize('file', ['Neb.cir'])
+def test_load_rate(file):
+    file = THIS_DIR + '/example_data/' + file
+    rate = xrfac.ascii.load_rate(file)
+    print(rate)
+    assert rate['ex_rate'].isnull().sum() == 0
+    assert rate['dex_rate'].isnull().sum() == 0
+
+
 @pytest.mark.parametrize('files', [
      ('ne.lev', 'ne.lev.b'),
      ('ne.tr', 'ne.tr.b'),
