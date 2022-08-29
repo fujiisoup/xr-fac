@@ -13,8 +13,8 @@ def test_load_rate(file):
     file = THIS_DIR + '/example_data/' + file
     rate = xrfac.ascii.load_rate(file)
     print(rate)
-    assert rate['ex_rate'].isnull().sum() == 0
-    assert rate['dex_rate'].isnull().sum() == 0
+    assert rate['rate'].isnull().sum() == 0
+    assert rate['inv_rate'].isnull().sum() == 0
 
 
 @pytest.mark.parametrize('files', [
