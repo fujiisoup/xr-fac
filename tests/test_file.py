@@ -8,6 +8,14 @@ import xrfac
 THIS_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
+@pytest.mark.parametrize('file', ['CIII_EB.lev.b'])
+def test_enEB(file):
+    file = THIS_DIR + './example_data/' + file
+    rate = xrfac.binary.laod(file)
+    print(rate)
+    raise ValueError
+
+
 @pytest.mark.parametrize('file', ['Neb.cir'])
 def test_load_rate(file):
     file = THIS_DIR + '/example_data/' + file

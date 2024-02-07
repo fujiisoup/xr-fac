@@ -60,6 +60,10 @@ def load(filename, in_memory=True, **kwargs):
             return _read_ai(header, f, in_memory=in_memory)
         if header['Type'] == 7:
             return _read_sp(header, f, in_memory=in_memory, **kwargs)
+        if header['Type'] == 12:
+            return _read_enEB(header, f, in_memory=in_memory, **kwargs)
+        if header['Type'] == 13:
+            return _read_trEB(header, f, in_memory=in_memory, **kwargs)
 
         raise NotImplementedError(
             'File type {} is not yet implemented.'.format(header['Type']))
@@ -81,6 +85,22 @@ def en(filename, in_memory):
         return _read_en(header, f, in_memory)
 
 
+def enEB(filename, in_memory):
+    """ read .en file from fac (saved with StructureEB) and return as a xarray object.
+
+    Parameters
+    ----------
+    filename: path to the file
+
+    Returns
+    -------
+    obj: xr.DataArray
+    """
+    with open(filename, 'rb') as f:
+        header, f = _F_header(f)
+        return _read_enEB(header, f, in_memory)
+
+
 def tr(filename, in_memory):
     """ read .tr file from fac and return as a xarray object.
 
@@ -92,16 +112,110 @@ def tr(filename, in_memory):
     -------
     obj: xr.DataArray
     """
-    if not has_xarray:
-        raise ImportError('This function requires xarray installed in the '
-                          'environment.')
-
     with open(filename, 'rb') as f:
         header, f = _F_header(f)
         return _read_tr(header, f, in_memory)
 
 
+def trEB(filename, in_memory):
+    """ read .tr file with Field (saved with TRTableEB) from fac and return as a xarray object.
+
+    Parameters
+    ----------
+    filename: path to the file
+
+    Returns
+    -------
+    obj: xr.DataArray
+    """
+    with open(filename, 'rb') as f:
+        header, f = _F_header(f)
+        return _read_trEB(header, f, in_memory)
+
+
 def _read_en(header, file, in_memory):
+    lncomplex, lsname, lname = utils.get_lengths(header['FAC'])
+
+    def read_block(file):
+        block = OrderedDict()
+        position = struct.unpack('l', file.read(8))[0]
+        length = struct.unpack('l', file.read(8))[0]
+        block['nele'] = struct.unpack('i', file.read(4))[0]
+        nlev = struct.unpack('i', file.read(4))[0]
+
+        # convert to array
+        block = {key: np.full(nlev, val) for key, val in block.items()}
+
+        block['ilev'] = np.zeros(nlev, dtype=int)
+        block['ibase'] = np.zeros(nlev, dtype=int)
+        block['energy'] = np.zeros(nlev, dtype=float)
+        block['parity'] = np.zeros(nlev, dtype=np.int8)
+        block['n'] = np.zeros(nlev, dtype=np.int8)
+        block['l'] = np.zeros(nlev, dtype=np.int8)
+        block['j'] = np.zeros(nlev, dtype=np.int8)
+        block['ncomplex'] = np.chararray(nlev, itemsize=lncomplex,
+                                         unicode=True)
+        block['sname'] = np.chararray(nlev, itemsize=lsname, unicode=True)
+        block['name'] = np.chararray(nlev, itemsize=lname, unicode=True)
+
+        for i in range(nlev):
+            p = struct.unpack('h', file.read(2))[0]
+            parity = np.sign(p)
+            p = p * parity
+            n = np.int8(p // 100)
+            l = np.int8(p - n * 100)
+            parity = 0 if parity > 0 else 1
+            block['parity'][i], block['n'][i], block['l'][i] = parity, n, l
+            block['j'][i] = struct.unpack('h', file.read(2))[0]
+            block['ilev'][i] = struct.unpack('i', file.read(4))[0]
+            block['ibase'][i] = struct.unpack('i', file.read(4))[0]
+            block['energy'][i] = struct.unpack('d', file.read(8))[0]
+            block['ncomplex'][i] = file.read(lncomplex).strip(b'\x00').strip()
+            block['sname'][i] = file.read(lsname).strip(b'\x00').strip()
+            block['name'][i] = file.read(lname).strip(b'\x00').strip()
+
+        return block
+
+    def to_xarray(block):
+        keys = block.keys()
+        ds = xr.Dataset(
+            {k: ('ilev', block[k]) for k in keys}, attrs=header)
+        ds = ds.set_coords(['ilev'])
+        ds['energy'] = utils.hartree2eV(ds['energy'])
+        return ds
+
+    if in_memory:
+        ds = xr.concat(
+            [to_xarray(read_block(file)) for i in range(header['NBlocks'])],
+            dim='ilev')
+    else:
+        files = []
+        i = 0
+        while i < header['NBlocks']:
+            count = 0
+            datasets = []
+            while count < ONE_FILE_ENTRIES and i < header['NBlocks']:
+                ds = to_xarray(read_block(file))
+                count += len(ds['ilev'])
+                i += 1
+                datasets.append(ds)
+            outfile = tempfile.NamedTemporaryFile()
+            xr.concat(datasets, dim='ilev').to_netcdf(outfile.name)
+            files.append(outfile)
+
+        filenames = [f.name for f in files]
+        ds = xr.open_mfdataset(filenames)
+        ds.attrs['_temporary_files'] = filenames  # for testing
+
+    ionization_eng = ds['energy'].min()
+    ds.attrs['idx_ground'] = ds['energy'].argmin().values.item()
+    ds.attrs['eng_ground'] = ionization_eng.values.item()
+    ds['energy'] -= ionization_eng
+    ds['energy'].attrs['unit'] = 'eV'
+    return ds
+
+
+def _read_enEB(header, file, in_memory):
     lncomplex, lsname, lname = utils.get_lengths(header['FAC'])
 
     def read_block(file):

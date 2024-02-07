@@ -8,3 +8,6 @@ __pycache__
 xrfac.egg-info
 build
 dist
+
+# vscode
+*.code-workspace
