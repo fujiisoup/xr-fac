@@ -166,7 +166,7 @@ def _read_en(header, file, in_memory):
                 count += len(ds['ilev'])
                 i += 1
                 datasets.append(ds)
-            outfile = tempdir.name + '{}.nc'.format(count)
+            outfile = tempdir.name + '{}.nc'.format(i)
             xr.concat(datasets, dim='ilev').to_netcdf(outfile)
             files.append(outfile)
 
@@ -174,7 +174,7 @@ def _read_en(header, file, in_memory):
         ds.attrs['_temporary_files'] = files  # for testing
 
     ionization_eng = ds['energy'].min()
-    ds.attrs['idx_ground'] = ds['energy'].argmin('energy').values.item()
+    ds.attrs['idx_ground'] = ds['energy'].argmin('ilev').values.item()
     ds.attrs['eng_ground'] = ionization_eng.values.item()
     ds['energy'] -= ionization_eng
     ds['energy'].attrs['unit'] = 'eV'
@@ -236,7 +236,7 @@ def _read_tr(header, file, in_memory):
                 count += len(ds['itrans'])
                 i += 1
                 datasets.append(ds)
-            outfile = tempdir.name + '/{}.tr'.format(count)
+            outfile = tempdir.name + '/{}.tr'.format(i)
             xr.concat(datasets, dim='itrans').to_netcdf(outfile)
             files.append(outfile)
 
@@ -298,7 +298,7 @@ def _read_ai(header, file, in_memory):
                 count += len(ds['itrans'])
                 i += 1
                 datasets.append(ds)
-            outfile = tempdir.name + '{}.nc'.format(count)
+            outfile = tempdir.name + '{}.nc'.format(i)
             xr.concat(datasets, dim='itrans').to_netcdf(outfile)
             files.append(outfile)
 
@@ -372,7 +372,7 @@ def _read_sp(header, file, in_memory, only_pop=False):
                 count += len(ds['itrans'])
                 i += 1
                 datasets.append(ds)
-            outfile = tempdir.name + '/{}.sp'.format(count)
+            outfile = tempdir.name + '/{}.sp'.format(i)
             xr.concat(datasets, dim='itrans').to_netcdf(outfile)
             files.append(outfile)
 
@@ -500,11 +500,11 @@ def _load_ham(f, header, return_basis, in_memory):
                     basis_sets.append(basis)
                     count += len(ham['entry'])
                 i += 1
-            outfile = tempdir.name + '/{}.ham'.format(count)
+            outfile = tempdir.name + '/{}.ham'.format(i)
             xr.concat(datasets, dim='entry').to_netcdf(outfile)
             files.append(outfile)
             if return_basis:
-                outfile = tempdir.name + '/{}.basis'.format(count)
+                outfile = tempdir.name + '/{}.basis'.format(i)
                 xr.concat(basis_sets, dim='i').to_netcdf(outfile)
                 basis_files.append(outfile)
 
