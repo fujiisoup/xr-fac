@@ -375,7 +375,7 @@ def _read_sp(header, file, in_memory, only_pop=False):
             xr.concat(datasets, dim='itrans').to_netcdf(outfile)
             files.append(outfile)
 
-        ds = xr.open_mfdataset(files)
+        ds = xr.open_mfdataset(files, combine='nested', concat_dim='itrans')
         ds.attrs['_temporary_files'] = files  # for testing
         return ds
 
@@ -507,10 +507,10 @@ def _load_ham(f, header, return_basis, in_memory):
                 xr.concat(basis_sets, dim='i').to_netcdf(outfile)
                 basis_files.append(outfile)
 
-        ds = xr.open_mfdataset(files)['value']
+        ds = xr.open_mfdataset(files, combine='nested', concat_dim='entry')['value']
         ds.attrs['_temporary_files'] = files  # for testing
         if return_basis:
-            basis = xr.open_mfdataset(basis_files)['basis']
+            basis = xr.open_mfdataset(basis_files, combine='nested', concat_dim='i')['basis']
             basis.attrs['_temporary_files'] = basis_files  # for testing
             return ds, basis
 
