@@ -379,7 +379,7 @@ def _read_sp(header, file, in_memory, only_pop=False):
             files.append(outfile)
 
         filenames = [f.name for f in files]
-        ds = xr.open_mfdataset(filenames)
+        ds = xr.open_mfdataset(filenames, combine='nested', concat_dim='itrans')
         ds.attrs['_temporary_files'] = filenames  # for testing
         return ds
 
@@ -512,11 +512,11 @@ def _load_ham(f, header, return_basis, in_memory):
                 basis_files.append(outfile)
 
         filenames = [f.name for f in files]
-        ds = xr.open_mfdataset(filenames)['value']
+        ds = xr.open_mfdataset(filenames, combine='nested', concat_dim='entry')['value']
         ds.attrs['_temporary_files'] = filenames  # for testing
         if return_basis:
             filenames = [f.name for f in basis_files]
-            basis = xr.open_mfdataset(filenames)['basis']
+            basis = xr.open_mfdataset(filenames, combine='nested', concat_dim='i')['basis']
             basis.attrs['_temporary_files'] = filenames  # for testing
             return ds, basis
 
