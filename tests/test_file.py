@@ -8,12 +8,24 @@ import xrfac
 THIS_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
-@pytest.mark.parametrize('file', ['CIII_EB.lev.b'])
-def test_enEB(file):
+@pytest.mark.parametrize(('file', 'txtfile'), [
+    ('CIII_EB.lev.b', 'CIII_EB.lev.t')
+])
+def test_enEB(file, txtfile):
     file = THIS_DIR + './example_data/' + file
-    rate = xrfac.binary.laod(file)
-    print(rate)
-    raise ValueError
+    ds_from_binary = xrfac.binary.load(file)
+    file = THIS_DIR + './example_data/' + txtfile
+    ds_from_ascii = xrfac.ascii.load(file)
+    
+    for k in ds_from_binary.variables:
+        if ds_from_ascii[k].dtype.kind in 'iuf':
+            if k in ['strength', 'rrate', 'trate', 'rate']:
+                assert np.allclose(ds_from_ascii[k], ds_from_binary[k],
+                                   rtol=1e-4)
+            else:
+                assert np.allclose(ds_from_ascii[k], ds_from_binary[k])
+        else:
+            assert (ds_from_ascii[k] == ds_from_binary[k]).all()
 
 
 @pytest.mark.parametrize('file', ['Neb.cir'])

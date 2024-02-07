@@ -11,6 +11,8 @@ ONE_FILE_ENTRIES = 1000
 MAX_SYMMETRIES = 256
 
 LONGTYPE = 'l' if struct.calcsize('l') == 8 else 'll'
+MAXLEVEB = 1000000
+
 
 def _F_header(file):
     """ Read common header from file """
@@ -222,56 +224,43 @@ def _read_enEB(header, file, in_memory):
 
     def read_block(file):
         block = OrderedDict()
-        position = struct.unpack('l', file.read(8))[0]
-        length = struct.unpack('l', file.read(8))[0]
+        position = struct.unpack(LONGTYPE, file.read(8))[0]
+        length = struct.unpack(LONGTYPE, file.read(8))[0]
         block['nele'] = struct.unpack('i', file.read(4))[0]
         nlev = struct.unpack('i', file.read(4))[0]
+        block['efield'] = struct.unpack('d', file.read(8))[0]
+        block['bfield'] = struct.unpack('d', file.read(8))[0]
+        block['fangle'] = struct.unpack('d', file.read(8))[0]
 
         # convert to array
         block = {key: np.full(nlev, val) for key, val in block.items()}
 
-        block['ilev'] = np.zeros(nlev, dtype=int)
-        block['ibase'] = np.zeros(nlev, dtype=int)
+        block['ilevEB'] = np.zeros(nlev, dtype=int)
         block['energy'] = np.zeros(nlev, dtype=float)
-        block['parity'] = np.zeros(nlev, dtype=np.int8)
-        block['n'] = np.zeros(nlev, dtype=np.int8)
-        block['l'] = np.zeros(nlev, dtype=np.int8)
-        block['j'] = np.zeros(nlev, dtype=np.int8)
-        block['ncomplex'] = np.chararray(nlev, itemsize=lncomplex,
-                                         unicode=True)
-        block['sname'] = np.chararray(nlev, itemsize=lsname, unicode=True)
-        block['name'] = np.chararray(nlev, itemsize=lname, unicode=True)
+        block['ilev'] = np.zeros(nlev, dtype=int)
+        block['M'] = np.zeros(nlev, dtype=int)
 
         for i in range(nlev):
-            p = struct.unpack('h', file.read(2))[0]
-            parity = np.sign(p)
-            p = p * parity
-            n = np.int8(p // 100)
-            l = np.int8(p - n * 100)
-            parity = 0 if parity > 0 else 1
-            block['parity'][i], block['n'][i], block['l'][i] = parity, n, l
-            block['j'][i] = struct.unpack('h', file.read(2))[0]
-            block['ilev'][i] = struct.unpack('i', file.read(4))[0]
-            block['ibase'][i] = struct.unpack('i', file.read(4))[0]
+            block['ilevEB'][i] = struct.unpack('i', file.read(4))[0]
             block['energy'][i] = struct.unpack('d', file.read(8))[0]
-            block['ncomplex'][i] = file.read(lncomplex).strip(b'\x00').strip()
-            block['sname'][i] = file.read(lsname).strip(b'\x00').strip()
-            block['name'][i] = file.read(lname).strip(b'\x00').strip()
+            k = struct.unpack('i', file.read(4))[0]
+            block['ilev'][i] = np.abs(k) % MAXLEVEB
+            block['M'][i] = (np.abs(k) // MAXLEVEB) * np.sign(k)
 
         return block
 
     def to_xarray(block):
         keys = block.keys()
         ds = xr.Dataset(
-            {k: ('ilev', block[k]) for k in keys}, attrs=header)
-        ds = ds.set_coords(['ilev'])
+            {k: ('ilevEB', block[k]) for k in keys}, attrs=header)
+        ds = ds.set_coords(['ilevEB'])
         ds['energy'] = utils.hartree2eV(ds['energy'])
         return ds
 
     if in_memory:
         ds = xr.concat(
             [to_xarray(read_block(file)) for i in range(header['NBlocks'])],
-            dim='ilev')
+            dim='ilevEB')
     else:
         files = []
         i = 0
@@ -284,7 +273,7 @@ def _read_enEB(header, file, in_memory):
                 i += 1
                 datasets.append(ds)
             outfile = tempfile.NamedTemporaryFile()
-            xr.concat(datasets, dim='ilev').to_netcdf(outfile.name)
+            xr.concat(datasets, dim='ilevEB').to_netcdf(outfile.name)
             files.append(outfile)
 
         filenames = [f.name for f in files]
