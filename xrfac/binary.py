@@ -1,6 +1,7 @@
 from collections import OrderedDict
 import tempfile
 import struct
+import pathlib
 import numpy as np
 import xarray as xr
 from . import utils
@@ -9,11 +10,12 @@ from . import utils
 ONE_FILE_ENTRIES = 1000
 MAX_SYMMETRIES = 256
 
+LONGTYPE = 'l' if struct.calcsize('l') == 8 else 'll'
 
 def _F_header(file):
     """ Read common header from file """
     header = OrderedDict()
-    header['TSess'] = struct.unpack('l', file.read(8))[0]
+    header['TSess'] = struct.unpack(LONGTYPE, file.read(8))[0]
     major_ver = struct.unpack('i', file.read(4))[0]
     minor_ver = struct.unpack('i', file.read(4))[0]
     micro_ver = struct.unpack('i', file.read(4))[0]
@@ -138,8 +140,8 @@ def _read_en(header, file, in_memory):
 
     def read_block(file):
         block = OrderedDict()
-        position = struct.unpack('l', file.read(8))[0]
-        length = struct.unpack('l', file.read(8))[0]
+        position = struct.unpack(LONGTYPE, file.read(8))[0]
+        length = struct.unpack(LONGTYPE,file.read(8))[0]
         block['nele'] = struct.unpack('i', file.read(4))[0]
         nlev = struct.unpack('i', file.read(4))[0]
 
@@ -189,6 +191,7 @@ def _read_en(header, file, in_memory):
             [to_xarray(read_block(file)) for i in range(header['NBlocks'])],
             dim='ilev')
     else:
+        tempdir = tempfile.TemporaryDirectory()
         files = []
         i = 0
         while i < header['NBlocks']:
@@ -199,16 +202,15 @@ def _read_en(header, file, in_memory):
                 count += len(ds['ilev'])
                 i += 1
                 datasets.append(ds)
-            outfile = tempfile.NamedTemporaryFile()
-            xr.concat(datasets, dim='ilev').to_netcdf(outfile.name)
+            outfile = tempdir.name + '{}.nc'.format(i)
+            xr.concat(datasets, dim='ilev').to_netcdf(outfile)
             files.append(outfile)
 
-        filenames = [f.name for f in files]
-        ds = xr.open_mfdataset(filenames)
-        ds.attrs['_temporary_files'] = filenames  # for testing
+        ds = xr.open_mfdataset(files)
+        ds.attrs['_temporary_files'] = files  # for testing
 
     ionization_eng = ds['energy'].min()
-    ds.attrs['idx_ground'] = ds['energy'].argmin().values.item()
+    ds.attrs['idx_ground'] = ds['energy'].argmin('ilev').values.item()
     ds.attrs['eng_ground'] = ionization_eng.values.item()
     ds['energy'] -= ionization_eng
     ds['energy'].attrs['unit'] = 'eV'
@@ -301,8 +303,8 @@ def _read_tr(header, file, in_memory):
 
     def read_block(file):
         block = OrderedDict()
-        position = struct.unpack('l', file.read(8))[0]
-        length = struct.unpack('l', file.read(8))[0]
+        position = struct.unpack(LONGTYPE,file.read(8))[0]
+        length = struct.unpack(LONGTYPE,file.read(8))[0]
         block['nele'] = struct.unpack('i', file.read(4))[0]
         ntrans = struct.unpack('i', file.read(4))[0]
         block['gauge'] = struct.unpack('i', file.read(4))[0]
@@ -343,6 +345,7 @@ def _read_tr(header, file, in_memory):
     else:
         files = []
         i = 0
+        tempdir = tempfile.TemporaryDirectory()
         while i < header['NBlocks']:
             count = 0
             datasets = []
@@ -351,13 +354,12 @@ def _read_tr(header, file, in_memory):
                 count += len(ds['itrans'])
                 i += 1
                 datasets.append(ds)
-            outfile = tempfile.NamedTemporaryFile()
-            xr.concat(datasets, dim='itrans').to_netcdf(outfile.name)
+            outfile = tempdir.name + '/{}.tr'.format(i)
+            xr.concat(datasets, dim='itrans').to_netcdf(outfile)
             files.append(outfile)
 
-        filenames = [f.name for f in files]
-        ds = xr.open_mfdataset(filenames)
-        ds.attrs['_temporary_files'] = filenames  # for testing
+        ds = xr.open_mfdataset(files)
+        ds.attrs['_temporary_files'] = files  # for testing
         return ds
 
 
@@ -365,8 +367,8 @@ def _read_ai(header, file, in_memory):
 
     def read_block(file):
         block = OrderedDict()
-        position = struct.unpack('l', file.read(8))[0]
-        length = struct.unpack('l', file.read(8))[0]
+        position = struct.unpack(LONGTYPE,file.read(8))[0]
+        length = struct.unpack(LONGTYPE,file.read(8))[0]
         block['nele'] = struct.unpack('i', file.read(4))[0]
         ntrans = struct.unpack('i', file.read(4))[0]
         # just emin
@@ -405,6 +407,7 @@ def _read_ai(header, file, in_memory):
     else:
         files = []
         i = 0
+        tempdir = tempfile.TemporaryDirectory()
         while i < header['NBlocks']:
             count = 0
             datasets = []
@@ -413,13 +416,12 @@ def _read_ai(header, file, in_memory):
                 count += len(ds['itrans'])
                 i += 1
                 datasets.append(ds)
-            outfile = tempfile.NamedTemporaryFile()
-            xr.concat(datasets, dim='itrans').to_netcdf(outfile.name)
+            outfile = tempdir.name + '{}.nc'.format(i)
+            xr.concat(datasets, dim='itrans').to_netcdf(outfile)
             files.append(outfile)
 
-        filenames = [f.name for f in files]
-        ds = xr.open_mfdataset(filenames)
-        ds.attrs['_temporary_files'] = filenames  # for testing
+        ds = xr.open_mfdataset(files)
+        ds.attrs['_temporary_files'] = files  # for testing
         return ds
 
 
@@ -428,8 +430,8 @@ def _read_sp(header, file, in_memory, only_pop=False):
 
     def read_block(file):
         block = OrderedDict()
-        position = struct.unpack('l', file.read(8))[0]
-        length = struct.unpack('l', file.read(8))[0]
+        position = struct.unpack(LONGTYPE,file.read(8))[0]
+        length = struct.unpack(LONGTYPE,file.read(8))[0]
         block['nele'] = struct.unpack('i', file.read(4))[0]
         ntrans = struct.unpack('i', file.read(4))[0]
         block['iblock'] = struct.unpack('i', file.read(4))[0]
@@ -474,9 +476,9 @@ def _read_sp(header, file, in_memory, only_pop=False):
             blocks.append(to_xarray(block))
         return xr.concat(blocks, dim='itrans')
     else:
-        tempfile.mkdtemp()
         files = []
         i = 0
+        tempdir = tempfile.TemporaryDirectory()
         while i < header['NBlocks']:
             count = 0
             datasets = []
@@ -488,13 +490,12 @@ def _read_sp(header, file, in_memory, only_pop=False):
                 count += len(ds['itrans'])
                 i += 1
                 datasets.append(ds)
-            outfile = tempfile.NamedTemporaryFile()
-            xr.concat(datasets, dim='itrans').to_netcdf(outfile.name)
+            outfile = tempdir.name + '/{}.sp'.format(i)
+            xr.concat(datasets, dim='itrans').to_netcdf(outfile)
             files.append(outfile)
 
-        filenames = [f.name for f in files]
-        ds = xr.open_mfdataset(filenames)
-        ds.attrs['_temporary_files'] = filenames  # for testing
+        ds = xr.open_mfdataset(files, combine='nested', concat_dim='itrans')
+        ds.attrs['_temporary_files'] = files  # for testing
         return ds
 
 
@@ -601,10 +602,10 @@ def _load_ham(f, header, return_basis, in_memory):
             return xr.concat(syms, dim='entry'), xr.concat(basis, dim='i')
         return xr.concat(syms, dim='entry')
     else:
-        tempfile.mkdtemp()
         files = []
         basis_files = []
         i = 0
+        tempdir = tempfile.TemporaryDirectory()
         while i < MAX_SYMMETRIES:
             count = 0
             datasets = []
@@ -617,21 +618,19 @@ def _load_ham(f, header, return_basis, in_memory):
                     basis_sets.append(basis)
                     count += len(ham['entry'])
                 i += 1
-            outfile = tempfile.NamedTemporaryFile()
-            xr.concat(datasets, dim='entry').to_netcdf(outfile.name)
+            outfile = tempdir.name + '/{}.ham'.format(i)
+            xr.concat(datasets, dim='entry').to_netcdf(outfile)
             files.append(outfile)
             if return_basis:
-                outfile = tempfile.NamedTemporaryFile()
-                xr.concat(basis_sets, dim='i').to_netcdf(outfile.name)
+                outfile = tempdir.name + '/{}.basis'.format(i)
+                xr.concat(basis_sets, dim='i').to_netcdf(outfile)
                 basis_files.append(outfile)
 
-        filenames = [f.name for f in files]
-        ds = xr.open_mfdataset(filenames)['value']
-        ds.attrs['_temporary_files'] = filenames  # for testing
+        ds = xr.open_mfdataset(files, combine='nested', concat_dim='entry')['value']
+        ds.attrs['_temporary_files'] = files  # for testing
         if return_basis:
-            filenames = [f.name for f in basis_files]
-            basis = xr.open_mfdataset(filenames)['basis']
-            basis.attrs['_temporary_files'] = filenames  # for testing
+            basis = xr.open_mfdataset(basis_files, combine='nested', concat_dim='i')['basis']
+            basis.attrs['_temporary_files'] = basis_files  # for testing
             return ds, basis
 
         return ds
