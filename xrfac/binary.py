@@ -10,11 +10,12 @@ from . import utils
 ONE_FILE_ENTRIES = 1000
 MAX_SYMMETRIES = 256
 
+LONGTYPE = 'l' if struct.calcsize('l') == 8 else 'll'
 
 def _F_header(file):
     """ Read common header from file """
     header = OrderedDict()
-    header['TSess'] = struct.unpack('l', file.read(8))[0]
+    header['TSess'] = struct.unpack(LONGTYPE, file.read(8))[0]
     major_ver = struct.unpack('i', file.read(4))[0]
     minor_ver = struct.unpack('i', file.read(4))[0]
     micro_ver = struct.unpack('i', file.read(4))[0]
@@ -103,8 +104,8 @@ def _read_en(header, file, in_memory):
 
     def read_block(file):
         block = OrderedDict()
-        position = struct.unpack('l', file.read(8))[0]
-        length = struct.unpack('l', file.read(8))[0]
+        position = struct.unpack(LONGTYPE, file.read(8))[0]
+        length = struct.unpack(LONGTYPE,file.read(8))[0]
         block['nele'] = struct.unpack('i', file.read(4))[0]
         nlev = struct.unpack('i', file.read(4))[0]
 
@@ -173,7 +174,7 @@ def _read_en(header, file, in_memory):
         ds.attrs['_temporary_files'] = files  # for testing
 
     ionization_eng = ds['energy'].min()
-    ds.attrs['idx_ground'] = ds['energy'].argmin().values.item()
+    ds.attrs['idx_ground'] = ds['energy'].argmin('energy').values.item()
     ds.attrs['eng_ground'] = ionization_eng.values.item()
     ds['energy'] -= ionization_eng
     ds['energy'].attrs['unit'] = 'eV'
@@ -184,8 +185,8 @@ def _read_tr(header, file, in_memory):
 
     def read_block(file):
         block = OrderedDict()
-        position = struct.unpack('l', file.read(8))[0]
-        length = struct.unpack('l', file.read(8))[0]
+        position = struct.unpack(LONGTYPE,file.read(8))[0]
+        length = struct.unpack(LONGTYPE,file.read(8))[0]
         block['nele'] = struct.unpack('i', file.read(4))[0]
         ntrans = struct.unpack('i', file.read(4))[0]
         block['gauge'] = struct.unpack('i', file.read(4))[0]
@@ -235,7 +236,7 @@ def _read_tr(header, file, in_memory):
                 count += len(ds['itrans'])
                 i += 1
                 datasets.append(ds)
-            outfile = tempdir + '/{}.tr'.format(count)
+            outfile = tempdir.name + '/{}.tr'.format(count)
             xr.concat(datasets, dim='itrans').to_netcdf(outfile)
             files.append(outfile)
 
@@ -248,8 +249,8 @@ def _read_ai(header, file, in_memory):
 
     def read_block(file):
         block = OrderedDict()
-        position = struct.unpack('l', file.read(8))[0]
-        length = struct.unpack('l', file.read(8))[0]
+        position = struct.unpack(LONGTYPE,file.read(8))[0]
+        length = struct.unpack(LONGTYPE,file.read(8))[0]
         block['nele'] = struct.unpack('i', file.read(4))[0]
         ntrans = struct.unpack('i', file.read(4))[0]
         # just emin
@@ -297,7 +298,7 @@ def _read_ai(header, file, in_memory):
                 count += len(ds['itrans'])
                 i += 1
                 datasets.append(ds)
-            outfile = tempdir + '{}.nc'.format(count)
+            outfile = tempdir.name + '{}.nc'.format(count)
             xr.concat(datasets, dim='itrans').to_netcdf(outfile)
             files.append(outfile)
 
@@ -311,8 +312,8 @@ def _read_sp(header, file, in_memory, only_pop=False):
 
     def read_block(file):
         block = OrderedDict()
-        position = struct.unpack('l', file.read(8))[0]
-        length = struct.unpack('l', file.read(8))[0]
+        position = struct.unpack(LONGTYPE,file.read(8))[0]
+        length = struct.unpack(LONGTYPE,file.read(8))[0]
         block['nele'] = struct.unpack('i', file.read(4))[0]
         ntrans = struct.unpack('i', file.read(4))[0]
         block['iblock'] = struct.unpack('i', file.read(4))[0]
@@ -371,7 +372,7 @@ def _read_sp(header, file, in_memory, only_pop=False):
                 count += len(ds['itrans'])
                 i += 1
                 datasets.append(ds)
-            outfile = tempdir + '/{}.sp'.format(count)
+            outfile = tempdir.name + '/{}.sp'.format(count)
             xr.concat(datasets, dim='itrans').to_netcdf(outfile)
             files.append(outfile)
 
@@ -499,11 +500,11 @@ def _load_ham(f, header, return_basis, in_memory):
                     basis_sets.append(basis)
                     count += len(ham['entry'])
                 i += 1
-            outfile = tempdir.name + '{}.ham'.format(count)
+            outfile = tempdir.name + '/{}.ham'.format(count)
             xr.concat(datasets, dim='entry').to_netcdf(outfile)
             files.append(outfile)
             if return_basis:
-                outfile = tempdir.name + '{}.basis'.format(count)
+                outfile = tempdir.name + '/{}.basis'.format(count)
                 xr.concat(basis_sets, dim='i').to_netcdf(outfile)
                 basis_files.append(outfile)
 
