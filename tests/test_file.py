@@ -8,6 +8,38 @@ import xrfac
 THIS_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
+@pytest.mark.parametrize(('file', 'txtfile'), [
+    ('CIII_EB.lev.b', 'CIII_EB.lev.t')
+])
+def test_enEB(file, txtfile):
+    file = THIS_DIR + './example_data/' + file
+    ds_from_binary = xrfac.binary.load(file)
+    file = THIS_DIR + './example_data/' + txtfile
+    ds_from_ascii = xrfac.ascii.load(file)
+    
+    for k in ds_from_binary.variables:
+        if ds_from_ascii[k].dtype.kind in 'iuf':
+            assert np.allclose(ds_from_ascii[k], ds_from_binary[k])
+        else:
+            assert (ds_from_ascii[k] == ds_from_binary[k]).all()
+
+
+@pytest.mark.parametrize(('file', 'txtfile'), [
+    ('CIII_EB.tr.b', 'CIII_EB.tr.t')
+])
+def test_trEB(file, txtfile):
+    file = THIS_DIR + './example_data/' + file
+    ds_from_binary = xrfac.binary.load(file)
+    file = THIS_DIR + './example_data/' + txtfile
+    ds_from_ascii = xrfac.ascii.load(file)
+    
+    for k in ds_from_binary.variables:
+        if ds_from_ascii[k].dtype.kind in 'iuf':
+            assert np.allclose(ds_from_ascii[k], ds_from_binary[k])
+        else:
+            assert (ds_from_ascii[k] == ds_from_binary[k]).all()
+
+
 @pytest.mark.parametrize('file', ['Neb.cir'])
 def test_load_rate(file):
     file = THIS_DIR + '/example_data/' + file

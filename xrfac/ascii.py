@@ -59,6 +59,10 @@ def load(filename):
         return _read_ai(header, lines)
     if header['Type'] == 7:
         return _read_sp(header, lines)
+    if header['Type'] == 12:
+        return _read_enEB(header, lines)
+    if header['Type'] == 13:
+        return _read_trEB(header, lines)
 
     raise NotImplementedError(
         'File type {} is not yet implemented.'.format(header['Type']))
@@ -161,6 +165,48 @@ def _read_en(header, lines):
     return ds
 
 
+def _read_enEB(header, lines):
+    """ private function to read .en file """
+    lncomplex, lsname, lname = utils.get_lengths(header['FAC'])
+
+    def read_blocks(lines):
+        block = OrderedDict()
+        block['nele'], lines = _read_value(lines, int)
+        nlev, lines = _read_value(lines, int)
+        block['efield'], lines = _read_value(lines, float)
+        block['bfield'], lines = _read_value(lines, float)
+        block['fangle'], lines = _read_value(lines, float)
+        # convert to array
+        block = {key: np.full(nlev, val) for key, val in block.items()}
+
+        lines = lines[1:]  # skip header
+        # read the values
+        block['ilevEB'] = np.zeros(nlev, dtype=int)
+        block['energy'] = np.zeros(nlev, dtype=float)
+        block['ilev'] = np.zeros(nlev, dtype=int)
+        block['M'] = np.zeros(nlev, dtype=int)
+        for i, line in enumerate(lines):
+            if line.strip() == '':  # if empty
+                blocks = read_blocks(lines[i+1:])
+                return (block, ) + blocks
+
+            block['ilevEB'][i] = int(line[:7])
+            block['energy'][i] = float(line[8:30])
+            block['ilev'][i] = int(line[31:37])
+            block['M'][i] = int(line[38:])
+
+        return (block, )
+
+    blocks = read_blocks(lines[1:])
+    keys = blocks[0].keys()
+    ds = xr.Dataset(
+        {k: ('ilevEB', np.concatenate([bl[k] for bl in blocks]))
+         for k in keys}, attrs=header)
+    ds = ds.set_coords(['ilevEB'])
+    ds['energy'].attrs['unit'] = 'eV'
+    return ds
+
+
 def _read_tr(header, lines):
     def read_blocks(lines):
         block = OrderedDict()
@@ -185,6 +231,57 @@ def _read_tr(header, lines):
             block['lower'][i] = int(line[11:17])
             block['strength'][i] = float(line[34:48])
             block['A'][i] = float(line[48:62])
+
+        return None, block
+
+    lines = lines[1:]
+    lines, block = read_blocks(lines)
+    blocks = [block]
+    while lines is not None:
+        lines, block = read_blocks(lines)
+        blocks.append(block)
+
+    keys = blocks[0].keys()
+    ds = xr.Dataset(
+        {k: ('itrans', np.concatenate([bl[k] for bl in blocks]))
+         for k in keys}, attrs=header)
+    ds['lower'].attrs['about'] = 'The lower level index of the transition.'
+    ds['upper'].attrs['about'] = 'The upper level index of the transition.'
+    ds['strength'].attrs['about'] = 'The weighted oscillator strength gf.'
+    return ds
+
+
+def _read_trEB(header, lines):
+    def read_blocks(lines):
+        block = OrderedDict()
+        block['nele'], lines = _read_value(lines, int)
+        ntrans, lines = _read_value(lines, int)
+        block['multipole'], lines = _read_value(lines, int)
+        block['gauge'], lines = _read_value(lines, int)
+        block['mode'], lines = _read_value(lines, int)
+        block['efield'], lines = _read_value(lines, float)
+        block['bfield'], lines = _read_value(lines, float)
+        block['fangle'], lines = _read_value(lines, float)
+        
+        # convert to array
+        nq = 2 * np.abs(block['multipole']) + 1
+        block = {key: np.full(ntrans * nq, val) for key, val in block.items()}
+
+        # read the values
+        block['lower'] = np.zeros(ntrans * nq, dtype=int)
+        block['upper'] = np.zeros(ntrans * nq, dtype=int)
+        block['strength'] = np.zeros(ntrans * nq, dtype=float)
+        block['q'] = np.zeros(ntrans * nq, dtype=int)
+        block['A'] = np.zeros(ntrans * nq, dtype=float)
+
+        for i, line in enumerate(lines):
+            if line.strip() == '':  # if empty
+                return lines[i+1:], block
+            block['upper'][i] = int(line[:7])
+            block['lower'][i] = int(line[18:25])
+            block['q'][i] = int(line[36:39])
+            block['strength'][i] = float(line[81:95])
+            block['A'][i] = float(line[96:])
 
         return None, block
 
