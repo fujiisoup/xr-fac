@@ -19,11 +19,23 @@ def test_enEB(file, txtfile):
     
     for k in ds_from_binary.variables:
         if ds_from_ascii[k].dtype.kind in 'iuf':
-            if k in ['strength', 'rrate', 'trate', 'rate']:
-                assert np.allclose(ds_from_ascii[k], ds_from_binary[k],
-                                   rtol=1e-4)
-            else:
-                assert np.allclose(ds_from_ascii[k], ds_from_binary[k])
+            assert np.allclose(ds_from_ascii[k], ds_from_binary[k])
+        else:
+            assert (ds_from_ascii[k] == ds_from_binary[k]).all()
+
+
+@pytest.mark.parametrize(('file', 'txtfile'), [
+    ('CIII_EB.tr.b', 'CIII_EB.tr.t')
+])
+def test_trEB(file, txtfile):
+    file = THIS_DIR + './example_data/' + file
+    ds_from_binary = xrfac.binary.load(file)
+    file = THIS_DIR + './example_data/' + txtfile
+    ds_from_ascii = xrfac.ascii.load(file)
+    
+    for k in ds_from_binary.variables:
+        if ds_from_ascii[k].dtype.kind in 'iuf':
+            assert np.allclose(ds_from_ascii[k], ds_from_binary[k])
         else:
             assert (ds_from_ascii[k] == ds_from_binary[k]).all()
 
